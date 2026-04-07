@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Outputs
+outputs/models/*.pth
+outputs/logs/*
+outputs/metrics/*
+outputs/figures/*
+!outputs/models/.gitkeep
+!outputs/logs/.gitkeep
+!outputs/metrics/.gitkeep
+!outputs/figures/.gitkeep
+
+# Data
+# Keep raw MRI data out of git by default
+data/raw/*
+!data/raw/.gitkeep
+
+# Optional: ignore processed data if large
+# data/processed/*
+# !data/processed/.gitkeep
