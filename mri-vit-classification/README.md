@@ -31,6 +31,13 @@ data/processed/
 pip install -r requirements.txt
 ```
 
+## Quick Start (Windows PowerShell)
+
+```powershell
+./scripts/run_train.ps1
+./scripts/run_eval.ps1
+```
+
 ## Train (ViT + ResNet18 comparison)
 
 ```bash
@@ -50,3 +57,11 @@ python -m src.evaluate --config config/config.yaml --model resnet18
 - logs: `outputs/logs/*_epoch_log.csv`
 - metrics: `outputs/metrics/comparison_metrics.csv`, `outputs/metrics/summary.txt`
 - figures: `outputs/figures/*`
+
+## CI
+
+GitHub Actions workflow is added at repository root:
+
+- `.github/workflows/python-ci.yml`
+
+This workflow installs dependencies, runs syntax checks, and verifies CLI entry points.
