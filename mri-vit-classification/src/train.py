@@ -14,12 +14,14 @@ from src.visualize import plot_learning_curves, save_vit_attention_map
 
 
 def train_one_epoch(model, loader, criterion, optimizer, device: torch.device):
+    # 1エポック分の学習（順伝播 -> 誤差計算 -> 逆伝播 -> 重み更新）
     model.train()
     running_loss = 0.0
     preds_all, targets_all = [], []
 
     for images, targets in loader:
         images, targets = images.to(device), targets.to(device)
+        # 直前バッチの勾配を初期化
         optimizer.zero_grad()
         outputs = model(images)
         loss = criterion(outputs, targets)
@@ -35,6 +37,7 @@ def train_one_epoch(model, loader, criterion, optimizer, device: torch.device):
 
 
 def evaluate(model, loader, criterion, device: torch.device) -> Dict[str, float]:
+    # 検証処理（重み更新せず、指標だけ計算）
     model.eval()
     running_loss = 0.0
     preds_all, targets_all, probs_all = [], [], []
@@ -44,6 +47,7 @@ def evaluate(model, loader, criterion, device: torch.device) -> Dict[str, float]
             images, targets = images.to(device), targets.to(device)
             outputs = model(images)
             loss = criterion(outputs, targets)
+            # 2値分類を前提にクラス1の確率を AUC 用に使う
             probs = torch.softmax(outputs, dim=1)[:, 1]
             preds = torch.argmax(outputs, dim=1)
 
@@ -65,12 +69,14 @@ def evaluate(model, loader, criterion, device: torch.device) -> Dict[str, float]
 
 
 def run_training(model_name: str, cfg: Dict[str, Any], dataloaders, device: torch.device) -> Dict[str, Any]:
+    # 設定からモデルを構築して実行デバイスへ配置
     model = build_model(
         model_name=model_name,
         num_classes=cfg["model"]["num_classes"],
         vit_name=cfg["model"]["vit_name"],
     ).to(device)
 
+    # 損失関数と最適化手法を定義
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(
         model.parameters(),
@@ -84,6 +90,7 @@ def run_training(model_name: str, cfg: Dict[str, Any], dataloaders, device: torc
     out_dir = Path(cfg["output"]["output_dir"])
     best_path = out_dir / "models" / f"{model_name}_best.pth"
 
+    # エポックごとに学習・検証を繰り返す
     for epoch in range(1, cfg["train"]["epochs"] + 1):
         tr_loss, tr_acc = train_one_epoch(model, dataloaders["train"], criterion, optimizer, device)
         val = evaluate(model, dataloaders["val"], criterion, device)
@@ -101,6 +108,7 @@ def run_training(model_name: str, cfg: Dict[str, Any], dataloaders, device: torc
             f"val_loss={val['loss']:.4f} val_acc={val['accuracy']:.4f} val_f1={val['f1']:.4f} val_auc={val['roc_auc']:.4f}"
         )
 
+        # 検証損失が最小の重みだけを保存
         if val["loss"] < best_val_loss:
             best_val_loss = val["loss"]
             best_epoch = epoch
@@ -109,9 +117,11 @@ def run_training(model_name: str, cfg: Dict[str, Any], dataloaders, device: torc
     save_epoch_log(history, out_dir / "logs" / f"{model_name}_epoch_log.csv")
     plot_learning_curves(history, title=model_name, output_path=out_dir / "figures" / f"{model_name}_learning_curves.png")
 
+    # ベスト重みを再読み込みして最終検証指標を計算
     model.load_state_dict(torch.load(best_path, map_location=device))
     final_metrics = evaluate(model, dataloaders["val"], criterion, device)
 
+    # ViT は注意マップ画像も保存（モデル構造に依存するため失敗時はスキップ）
     if model_name == "vit":
         images, _ = next(iter(dataloaders["val"]))
         _ = save_vit_attention_map(
@@ -133,6 +143,7 @@ def run_training(model_name: str, cfg: Dict[str, Any], dataloaders, device: torc
 
 
 def main():
+    # 1) 設定読み込み 2) データ準備 3) 学習実行 4) 結果保存
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, default="config/config.yaml")
     parser.add_argument("--models", nargs="+", default=["vit", "resnet18"], choices=["vit", "resnet18"])
@@ -142,6 +153,7 @@ def main():
     set_seed(cfg["seed"])
     ensure_dirs(cfg["output"]["output_dir"])
 
+    # GPU が使える場合は CUDA を利用
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
 
@@ -159,6 +171,7 @@ def main():
     for model_name in args.models:
         rows.append(run_training(model_name, cfg, dataloaders, device))
 
+    # モデル比較結果を CSV / テキストで出力
     out_dir = Path(cfg["output"]["output_dir"])
     save_comparison_csv(rows, out_dir / "metrics" / "comparison_metrics.csv")
     save_summary(rows, out_dir / "metrics" / "summary.txt")

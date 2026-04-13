@@ -7,6 +7,7 @@ import torch
 
 
 def plot_learning_curves(history: Dict[str, List[float]], title: str, output_path: Path) -> None:
+    # 学習曲線（Loss / Accuracy）を画像として保存
     output_path.parent.mkdir(parents=True, exist_ok=True)
     epochs = np.arange(1, len(history["train_loss"]) + 1)
 
@@ -37,7 +38,7 @@ def save_vit_attention_map(
     mean: float,
     std: float,
 ) -> bool:
-    """Try saving last-block ViT CLS-to-patch attention map."""
+    """ViT 最終ブロックの CLS->Patch 注意をヒートマップとして保存する。"""
     if not hasattr(model, "blocks") or len(model.blocks) == 0:
         return False
 
@@ -60,6 +61,7 @@ def save_vit_attention_map(
         return False
 
     attn = bucket["attn"]
+    # 複数ヘッドを平均して、1枚の注意マップに集約
     attn = attn[0].mean(dim=0)
     cls_to_patch = attn[0, 1:]
     n = cls_to_patch.shape[0]
@@ -68,6 +70,7 @@ def save_vit_attention_map(
         return False
 
     heatmap = cls_to_patch.reshape(side, side).numpy()
+    # 描画しやすいように 0-1 に正規化
     heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min() + 1e-8)
 
     img = image_batch[0].detach().cpu().permute(1, 2, 0).numpy()

@@ -11,12 +11,14 @@ from src.utils import load_config, save_json
 
 
 def evaluate_once(model, loader, device: torch.device):
+    # 学習済みモデルで1回評価し、主要指標を返す
     model.eval()
     preds_all, targets_all, probs_all = [], [], []
     with torch.no_grad():
         for images, targets in loader:
             images, targets = images.to(device), targets.to(device)
             outputs = model(images)
+            # 2値分類の陽性クラス確率を AUC 計算に利用
             probs = torch.softmax(outputs, dim=1)[:, 1]
             preds = torch.argmax(outputs, dim=1)
             preds_all.extend(preds.detach().cpu().numpy().tolist())
@@ -35,9 +37,11 @@ def evaluate_once(model, loader, device: torch.device):
 
 
 def main():
+    # 設定・モデル・データを読み込み、指定 split で評価する
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, default="config/config.yaml")
     parser.add_argument("--model", type=str, default="vit", choices=["vit", "resnet18"])
+    parser.add_argument("--split", type=str, default="val", choices=["val", "test"])
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -59,10 +63,17 @@ def main():
     criterion = nn.CrossEntropyLoss()
     _ = criterion  # reserved for extension if loss logging is needed
 
-    metrics = evaluate_once(model, dataloaders["val"], device)
+    if args.split not in dataloaders:
+        raise ValueError(
+            f"Requested split '{args.split}' is not available. "
+            "Create data/processed/test with class folders or use --split val."
+        )
+
+    # 評価結果を表示し、JSONでも保存して再利用しやすくする
+    metrics = evaluate_once(model, dataloaders[args.split], device)
     print(metrics)
 
-    out_path = Path(cfg["output"]["output_dir"]) / "metrics" / f"{args.model}_eval.json"
+    out_path = Path(cfg["output"]["output_dir"]) / "metrics" / f"{args.model}_eval_{args.split}.json"
     save_json(metrics, out_path)
 
 
