@@ -7,6 +7,7 @@ from torchvision import datasets, transforms
 
 
 def build_transforms(image_size: int = 224, mean: float = 0.5, std: float = 0.5) -> Tuple[transforms.Compose, transforms.Compose]:
+    # 学習時は軽いデータ拡張を入れて汎化性能を向上
     train_transform = transforms.Compose(
         [
             transforms.Resize((image_size, image_size)),
@@ -17,6 +18,7 @@ def build_transforms(image_size: int = 224, mean: float = 0.5, std: float = 0.5)
         ]
     )
 
+    # 検証時は拡張なしで、純粋な性能を評価
     val_transform = transforms.Compose(
         [
             transforms.Resize((image_size, image_size)),
@@ -37,6 +39,8 @@ def build_dataloaders(
     std: float = 0.5,
 ) -> Tuple[Dict[str, DataLoader], Dict[str, int]]:
     """
+        train/val 用の DataLoader を作成する。
+
     Expected structure:
         dataset/
           train/
@@ -48,6 +52,7 @@ def build_dataloaders(
     """
     train_transform, val_transform = build_transforms(image_size=image_size, mean=mean, std=std)
 
+    # ImageFolder はクラスごとのフォルダ構造から自動でラベルを付与する
     train_dir = Path(data_dir) / "train"
     val_dir = Path(data_dir) / "val"
 
@@ -70,5 +75,6 @@ def build_dataloaders(
     )
 
     dataloaders = {"train": train_loader, "val": val_loader}
+    # データ件数は損失平均やログ確認に使用
     dataset_sizes = {"train": len(train_dataset), "val": len(val_dataset)}
     return dataloaders, dataset_sizes

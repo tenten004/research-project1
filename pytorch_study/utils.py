@@ -10,6 +10,7 @@ from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 
 
 def set_seed(seed: int = 42) -> None:
+    # 乱数を固定して実験の再現性を高める
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -19,6 +20,7 @@ def set_seed(seed: int = 42) -> None:
 
 
 def train_one_epoch(model, dataloader, criterion, optimizer, device: torch.device) -> Tuple[float, float]:
+    # 1エポック分の学習（重み更新あり）
     model.train()
     running_loss = 0.0
     all_preds: List[int] = []
@@ -28,6 +30,7 @@ def train_one_epoch(model, dataloader, criterion, optimizer, device: torch.devic
         images = images.to(device)
         targets = targets.to(device)
 
+        # 勾配を初期化してから逆伝播
         optimizer.zero_grad()
         outputs = model(images)
         loss = criterion(outputs, targets)
@@ -45,6 +48,7 @@ def train_one_epoch(model, dataloader, criterion, optimizer, device: torch.devic
 
 
 def evaluate(model, dataloader, criterion, device: torch.device) -> Dict[str, float]:
+    # 評価時は重み更新せず、指標のみ計算
     model.eval()
     running_loss = 0.0
     all_preds: List[int] = []
@@ -58,6 +62,7 @@ def evaluate(model, dataloader, criterion, device: torch.device) -> Dict[str, fl
 
             outputs = model(images)
             loss = criterion(outputs, targets)
+            # 2値分類を想定してクラス1の確率をAUCに使用
             probs = torch.softmax(outputs, dim=1)[:, 1]
             preds = torch.argmax(outputs, dim=1)
 
@@ -84,6 +89,7 @@ def evaluate(model, dataloader, criterion, device: torch.device) -> Dict[str, fl
 
 
 def save_epoch_log(history: Dict[str, List[float]], output_csv_path: Path) -> None:
+    # エポックごとの履歴をCSVに保存
     output_csv_path.parent.mkdir(parents=True, exist_ok=True)
     keys = ["epoch", "train_loss", "train_acc", "val_loss", "val_acc", "val_f1", "val_roc_auc"]
 
@@ -106,6 +112,7 @@ def save_epoch_log(history: Dict[str, List[float]], output_csv_path: Path) -> No
 
 
 def save_comparison_csv(results: List[Dict[str, Any]], output_csv_path: Path) -> None:
+    # 複数モデルの最終指標を1つのCSVにまとめる
     output_csv_path.parent.mkdir(parents=True, exist_ok=True)
     keys = ["model", "accuracy", "f1", "roc_auc", "best_val_loss", "best_epoch"]
 
@@ -117,6 +124,7 @@ def save_comparison_csv(results: List[Dict[str, Any]], output_csv_path: Path) ->
 
 
 def plot_learning_curves(history: Dict[str, List[float]], title: str, output_path: Path) -> None:
+    # LossとAccuracyの推移を図として保存
     output_path.parent.mkdir(parents=True, exist_ok=True)
     epochs = np.arange(1, len(history["train_loss"]) + 1)
 
@@ -142,6 +150,7 @@ def plot_learning_curves(history: Dict[str, List[float]], title: str, output_pat
 
 
 def save_text_summary(results: List[Dict[str, Any]], output_txt_path: Path) -> None:
+    # 結果概要を人が読みやすいテキストで保存
     output_txt_path.parent.mkdir(parents=True, exist_ok=True)
     lines = ["Model Comparison Results\n", "=" * 40 + "\n"]
     for row in results:
@@ -168,6 +177,8 @@ def visualize_vit_attention_map(
     std: float = 0.5,
 ) -> bool:
     """
+    ViT最終ブロックの注意重みを取り出してヒートマップ化する。
+
     Save an approximate attention map from the last ViT block.
     Returns False if the expected timm ViT internals are not found.
     """
@@ -193,8 +204,9 @@ def visualize_vit_attention_map(
         return False
 
     attn = attn_container["attn"]
-    # [B, heads, tokens, tokens] -> first sample
+    # [B, heads, tokens, tokens] から先頭サンプルを使用
     attn = attn[0].mean(dim=0)
+    # CLSトークンから各パッチへの注意を可視化
     cls_to_patch = attn[0, 1:]
 
     num_patches = cls_to_patch.shape[0]

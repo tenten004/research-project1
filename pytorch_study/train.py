@@ -22,15 +22,18 @@ from utils import (
 
 
 def train_model(model_name: str, cfg: Config, dataloaders, device: torch.device) -> Dict[str, Any]:
+    # モデルを作成し、CPU/GPU の実行デバイスに配置
     model = build_model(
         model_name=model_name,
         num_classes=cfg.num_classes,
         vit_model_name=cfg.vit_name,
     ).to(device)
 
+    # 分類タスクで一般的な損失関数と最適化手法
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
 
+    # エポックごとの学習履歴（後でCSV保存・可視化に利用）
     history: Dict[str, List[float]] = {
         "train_loss": [],
         "train_acc": [],
@@ -44,6 +47,7 @@ def train_model(model_name: str, cfg: Config, dataloaders, device: torch.device)
     best_epoch = 0
     best_model_path = Path(cfg.output_dir) / "models" / f"{model_name}_best.pth"
 
+    # 1エポックごとに「学習 -> 検証」を実施
     for epoch in range(1, cfg.epochs + 1):
         train_loss, train_acc = train_one_epoch(
             model=model,
@@ -73,6 +77,7 @@ def train_model(model_name: str, cfg: Config, dataloaders, device: torch.device)
             f"F1: {val_metrics['f1']:.4f} AUC: {val_metrics['roc_auc']:.4f}"
         )
 
+        # 検証損失が最も良かった重みのみ保存
         if val_metrics["loss"] < best_val_loss:
             best_val_loss = val_metrics["loss"]
             best_epoch = epoch
@@ -84,6 +89,7 @@ def train_model(model_name: str, cfg: Config, dataloaders, device: torch.device)
     plot_path = Path(cfg.output_dir) / "plots" / f"{model_name}_learning_curves.png"
     plot_learning_curves(history=history, title=model_name, output_path=plot_path)
 
+    # ベスト重みを読み直して最終評価値を計算
     model.load_state_dict(torch.load(best_model_path, map_location=device))
     final_metrics = evaluate(
         model=model,
@@ -118,6 +124,7 @@ def train_model(model_name: str, cfg: Config, dataloaders, device: torch.device)
 
 
 def parse_args() -> argparse.Namespace:
+    # コマンドライン引数から実験条件を受け取る
     parser = argparse.ArgumentParser(description="Train ViT and ResNet18 for binary MRI classification")
     parser.add_argument("--data_dir", type=str, default="dataset", help="Dataset root directory")
     parser.add_argument("--output_dir", type=str, default="outputs", help="Output directory")
@@ -137,6 +144,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    # 全体の流れ: 引数解析 -> 設定作成 -> データ準備 -> 学習 -> 結果保存
     args = parse_args()
 
     cfg = Config(
@@ -152,6 +160,7 @@ def main() -> None:
     cfg.ensure_output_dirs()
     set_seed(cfg.seed)
 
+    # GPU が利用可能なら CUDA を使用
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
@@ -170,6 +179,7 @@ def main() -> None:
         result = train_model(model_name=model_name, cfg=cfg, dataloaders=dataloaders, device=device)
         results.append(result)
 
+    # 比較結果をCSVとテキストに保存
     comparison_csv_path = Path(cfg.output_dir) / "metrics" / "comparison_metrics.csv"
     save_comparison_csv(results=results, output_csv_path=comparison_csv_path)
 

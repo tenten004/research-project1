@@ -1,0 +1,23 @@
+seed: 42
+
+data:
+  # 卒研向け最適条件: axial 9-15 の7枚を切り出したデータを配置
+  data_dir: data/processed_axial_9_15
+  image_size: 224
+  mean: 0.5
+  std: 0.5
+  num_workers: 4
+
+train:
+  batch_size: 16
+  epochs: 30
+  lr: 0.0001
+  weight_decay: 0.0001
+
+model:
+  vit_name: vit_base_patch16_224
+  num_classes: 2
+
+output:
+  # 条件別に出力先を分離して比較しやすくする
+  output_dir: outputs/axial_9_15

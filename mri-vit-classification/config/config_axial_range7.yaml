@@ -1,0 +1,23 @@
+seed: 42
+
+data:
+  # 先行研究の条件に合わせ、axial range=7 で作成したデータを配置
+  data_dir: data/processed_range7
+  image_size: 224
+  mean: 0.5
+  std: 0.5
+  num_workers: 4
+
+train:
+  batch_size: 16
+  epochs: 30
+  lr: 0.0001
+  weight_decay: 0.0001
+
+model:
+  vit_name: vit_base_patch16_224
+  num_classes: 2
+
+output:
+  # range ごとに結果を分離して比較しやすくする
+  output_dir: outputs/range7
