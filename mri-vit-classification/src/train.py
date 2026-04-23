@@ -36,7 +36,7 @@ def train_one_epoch(model, loader, criterion, optimizer, device: torch.device):
     return running_loss / len(loader.dataset), accuracy_score(targets_all, preds_all)
 
 
-def evaluate(model, loader, criterion, device: torch.device) -> Dict[str, float]:
+def evaluate(model, loader, criterion, device: torch.device, num_classes: int) -> Dict[str, float]:
     # 検証処理（重み更新せず、指標だけ計算）
     model.eval()
     running_loss = 0.0
@@ -47,8 +47,7 @@ def evaluate(model, loader, criterion, device: torch.device) -> Dict[str, float]
             images, targets = images.to(device), targets.to(device)
             outputs = model(images)
             loss = criterion(outputs, targets)
-            # 2値分類を前提にクラス1の確率を AUC 用に使う
-            probs = torch.softmax(outputs, dim=1)[:, 1]
+            probs = torch.softmax(outputs, dim=1)
             preds = torch.argmax(outputs, dim=1)
 
             running_loss += loss.item() * images.size(0)
@@ -56,13 +55,20 @@ def evaluate(model, loader, criterion, device: torch.device) -> Dict[str, float]
             targets_all.extend(targets.detach().cpu().numpy().tolist())
             probs_all.extend(probs.detach().cpu().numpy().tolist())
 
+    f1_average = "binary" if num_classes == 2 else "macro"
+
     metrics = {
         "loss": running_loss / len(loader.dataset),
         "accuracy": accuracy_score(targets_all, preds_all),
-        "f1": f1_score(targets_all, preds_all, zero_division=0),
+        "f1": f1_score(targets_all, preds_all, average=f1_average, zero_division=0),
     }
+
     try:
-        metrics["roc_auc"] = roc_auc_score(targets_all, probs_all)
+        if num_classes == 2:
+            positive_probs = [row[1] for row in probs_all]
+            metrics["roc_auc"] = roc_auc_score(targets_all, positive_probs)
+        else:
+            metrics["roc_auc"] = roc_auc_score(targets_all, probs_all, multi_class="ovr", average="macro")
     except ValueError:
         metrics["roc_auc"] = float("nan")
     return metrics
@@ -93,7 +99,7 @@ def run_training(model_name: str, cfg: Dict[str, Any], dataloaders, device: torc
     # エポックごとに学習・検証を繰り返す
     for epoch in range(1, cfg["train"]["epochs"] + 1):
         tr_loss, tr_acc = train_one_epoch(model, dataloaders["train"], criterion, optimizer, device)
-        val = evaluate(model, dataloaders["val"], criterion, device)
+        val = evaluate(model, dataloaders["val"], criterion, device, num_classes=cfg["model"]["num_classes"])
 
         history["train_loss"].append(tr_loss)
         history["train_acc"].append(tr_acc)
@@ -119,7 +125,7 @@ def run_training(model_name: str, cfg: Dict[str, Any], dataloaders, device: torc
 
     # ベスト重みを再読み込みして最終検証指標を計算
     model.load_state_dict(torch.load(best_path, map_location=device))
-    final_metrics = evaluate(model, dataloaders["val"], criterion, device)
+    final_metrics = evaluate(model, dataloaders["val"], criterion, device, num_classes=cfg["model"]["num_classes"])
 
     # ViT は注意マップ画像も保存（モデル構造に依存するため失敗時はスキップ）
     if model_name == "vit":

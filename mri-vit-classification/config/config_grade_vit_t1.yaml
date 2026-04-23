@@ -1,0 +1,21 @@
+seed: 42
+
+data:
+  data_dir: data/grade_by_modality/T1
+  image_size: 224
+  mean: 0.5
+  std: 0.5
+  num_workers: 4
+
+train:
+  batch_size: 16
+  epochs: 30
+  lr: 0.0001
+  weight_decay: 0.0001
+
+model:
+  vit_name: vit_base_patch16_224
+  num_classes: 5
+
+output:
+  output_dir: outputs/grade_vit/t1

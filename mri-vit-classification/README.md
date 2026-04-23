@@ -1,96 +1,144 @@
 # MRI ViT Classification
 
-Vision Transformer と ResNet18 を用いて、脳 MRI 画像を 2 クラス（0: 正常、1: 異常）に分類するプロジェクトです。
+この README は、上から順に実行すれば
+「FL/T1/T2 ごとの grade 判別 (0-4)」まで完了する構成です。
 
-## プロジェクト構成
+## 0. このプロジェクトでやること
 
-- config/: 実験設定ファイル
-- data/: 生データ・前処理済みデータ・サンプルデータ
-- src/: 学習・評価・モデル定義コード
-- notebooks/: 探索的解析ノートブック
-- outputs/: モデル、ログ、評価指標、図の出力先
-- scripts/: 補助スクリプト
+- 主目的: ViT で grade 判別 (0-4) を行い、撮像法 (FL/T1/T2) ごとの性能を比較
+- 補足: `config/config.yaml` は 2 クラス分類 (0: 正常, 1: 異常) 用
 
-## データセット配置
+## 1. 事前準備
 
-学習・検証（および任意でテスト）用の画像フォルダは、次の構成を想定しています。
+### 1-1. 作業ディレクトリへ移動
 
-```text
-data/processed/
-  train/
-    class0/
-    class1/
-  val/
-    class0/
-    class1/
-  test/        # 任意（最終レポート時は推奨）
-    class0/
-    class1/
+プロジェクトルートで次を実行してください。
+
+```powershell
+cd mri-vit-classification
 ```
 
-## セットアップ
+### 1-2. 依存パッケージをインストール
 
-```bash
+```powershell
 pip install -r requirements.txt
 ```
 
-## 学習（ViT + ResNet18 の比較）
+## 2. 入力データの前提を確認
 
-```bash
-python -m src.train --config config/config.yaml
-python -m src.train --config config/config.yaml --resume
+次を満たしていればこのまま進められます。
+
+- CSV に `name`, `ID`, `wm` 列がある
+- `wm` は grade ラベル (0-4)
+- 画像は `-ImageRoot` で指定したフォルダ配下にある
+- 画像名は `FL_`, `T1_`, `T2_` の接頭辞を持つ (単一CSVの場合)
+
+## 3. grade データセットを作成
+
+まずはこのコマンドを実行してください (PowerShell)。
+
+```powershell
+./scripts/run_prepare_grade_dataset.ps1 -ImageRoot "C:/Users/ishii/takemura/labeled_image" -CleanOutput
 ```
 
-`--resume` を指定すると、`outputs/models/<model>_last.ckpt` が存在する場合に各モデルを再読み込みします。
+上記は `C:/Users/ishii/takemura/1_CNN/3_教師データ` にある以下の 3 CSV を自動検出します。
 
-## 卒研向け比較条件（Axial 9-15）
+- `labeled_image_list_FL_preprocess.csv`
+- `labeled_image_list_T1_preprocess.csv`
+- `labeled_image_list_T2_preprocess.csv`
 
-現時点の最適条件として、同じアキシャルスライス範囲（9枚目から15枚目の計7枚）で CNN と ViT を比較する場合は、以下を利用してください。
+自動検出を使わない場合は、どちらか 1 つの方式で指定します。
 
-- CNN は `resnet18`（2D CNN ベースライン）として比較します。
-- データは `data/processed_axial_9_15` に、通常と同じフォルダ構成（train/val/test）で配置します。
-- 設定ファイルは `config/config_axial_9_15.yaml` を使います。
+- 単一CSVを使う:
+
+```powershell
+./scripts/run_prepare_grade_dataset.ps1 -CsvPath "C:/path/to/labels.csv" -ImageRoot "C:/path/to/images" -CleanOutput
+```
+
+- モダリティ別CSVを使う:
+
+```powershell
+./scripts/run_prepare_grade_dataset.ps1 `
+  -ImageRoot "C:/path/to/images" `
+  -CsvPathFL "C:/path/to/labeled_image_list_FL_preprocess.csv" `
+  -CsvPathT1 "C:/path/to/labeled_image_list_T1_preprocess.csv" `
+  -CsvPathT2 "C:/path/to/labeled_image_list_T2_preprocess.csv" `
+  -CleanOutput
+```
+
+成功すると次が生成されます。
 
 ```text
-data/processed_axial_9_15/
-  train/
-    class0/
-    class1/
-  val/
-    class0/
-    class1/
-  test/        # 任意
-    class0/
-    class1/
+data/grade_by_modality/
+  FL/
+    train/grade0 ... grade4
+    val/grade0 ... grade4
+    test/grade0 ... grade4
+  T1/
+    train/grade0 ... grade4
+    val/grade0 ... grade4
+    test/grade0 ... grade4
+  T2/
+    train/grade0 ... grade4
+    val/grade0 ... grade4
+    test/grade0 ... grade4
+  summary_counts.csv
 ```
 
-実行例（PowerShell）:
+## 4. 学習を実行 (ViT, FL/T1/T2)
+
+```powershell
+./scripts/run_train_grade_modalities.ps1
+```
+
+内部で以下の設定を順に使います。
+
+- `config/config_grade_vit_fl.yaml`
+- `config/config_grade_vit_t1.yaml`
+- `config/config_grade_vit_t2.yaml`
+
+## 5. 評価を実行
+
+```powershell
+./scripts/run_eval_grade_modalities.ps1
+```
+
+## 6. 結果を確認
+
+以下の 3 ファイルを比較してください。
+
+- `outputs/grade_vit/fl/metrics/vit_eval_val.json`
+- `outputs/grade_vit/t1/metrics/vit_eval_val.json`
+- `outputs/grade_vit/t2/metrics/vit_eval_val.json`
+
+主に `accuracy`, `f1`, `roc_auc` を比較します。
+
+## 7. よくある詰まりポイント
+
+- `--resume` は現在未対応です
+- CSV の列名が違うとデータ生成に失敗します (`name`, `ID`, `wm` を確認)
+- 画像ファイルが見つからない場合は、`-ImageRoot` とファイル名の一致を確認
+
+## 8. オプション: 2クラス分類を実行したい場合
+
+grade 判別ではなく、2クラス分類 (正常/異常) を回す場合の手順です。
+
+```powershell
+./scripts/run_train.ps1
+./scripts/run_eval.ps1
+```
+
+または直接実行:
+
+```powershell
+python -m src.train --config config/config.yaml --models vit resnet18
+python -m src.evaluate --config config/config.yaml --model vit --split val
+python -m src.evaluate --config config/config.yaml --model resnet18 --split val
+```
+
+## 9. オプション: Axial 9-15 比較
 
 ```powershell
 ./scripts/run_train_axial_9_15.ps1
 ./scripts/run_eval_axial_9_15.ps1
 ```
-
-実行例（bash）:
-
-```bash
-./scripts/run_train_axial_9_15.sh
-./scripts/run_eval_axial_9_15.sh
-```
-
-出力先は `outputs/axial_9_15` 配下になります。
-
-## 評価
-
-```bash
-python -m src.evaluate --config config/config.yaml --model vit
-python -m src.evaluate --config config/config.yaml --model resnet18
-python -m src.evaluate --config config/config.yaml --model vit --split test
-```
-
-## 出力ファイル
-
-- models: `outputs/models/*.pth`
-- logs: `outputs/logs/*_epoch_log.csv`
-- metrics: `outputs/metrics/comparison_metrics.csv`, `outputs/metrics/summary.txt`
-- figures: `outputs/figures/*`

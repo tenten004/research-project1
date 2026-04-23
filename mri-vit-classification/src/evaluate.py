@@ -10,7 +10,7 @@ from src.model import build_model
 from src.utils import load_config, save_json
 
 
-def evaluate_once(model, loader, device: torch.device):
+def evaluate_once(model, loader, device: torch.device, num_classes: int):
     # 学習済みモデルで1回評価し、主要指標を返す
     model.eval()
     preds_all, targets_all, probs_all = [], [], []
@@ -18,19 +18,25 @@ def evaluate_once(model, loader, device: torch.device):
         for images, targets in loader:
             images, targets = images.to(device), targets.to(device)
             outputs = model(images)
-            # 2値分類の陽性クラス確率を AUC 計算に利用
-            probs = torch.softmax(outputs, dim=1)[:, 1]
+            probs = torch.softmax(outputs, dim=1)
             preds = torch.argmax(outputs, dim=1)
             preds_all.extend(preds.detach().cpu().numpy().tolist())
             targets_all.extend(targets.detach().cpu().numpy().tolist())
             probs_all.extend(probs.detach().cpu().numpy().tolist())
 
+    f1_average = "binary" if num_classes == 2 else "macro"
+
     result = {
         "accuracy": accuracy_score(targets_all, preds_all),
-        "f1": f1_score(targets_all, preds_all, zero_division=0),
+        "f1": f1_score(targets_all, preds_all, average=f1_average, zero_division=0),
     }
+
     try:
-        result["roc_auc"] = roc_auc_score(targets_all, probs_all)
+        if num_classes == 2:
+            positive_probs = [row[1] for row in probs_all]
+            result["roc_auc"] = roc_auc_score(targets_all, positive_probs)
+        else:
+            result["roc_auc"] = roc_auc_score(targets_all, probs_all, multi_class="ovr", average="macro")
     except ValueError:
         result["roc_auc"] = float("nan")
     return result
@@ -70,7 +76,7 @@ def main():
         )
 
     # 評価結果を表示し、JSONでも保存して再利用しやすくする
-    metrics = evaluate_once(model, dataloaders[args.split], device)
+    metrics = evaluate_once(model, dataloaders[args.split], device, num_classes=cfg["model"]["num_classes"])
     print(metrics)
 
     out_path = Path(cfg["output"]["output_dir"]) / "metrics" / f"{args.model}_eval_{args.split}.json"
