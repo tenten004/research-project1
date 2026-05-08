@@ -12,6 +12,7 @@ venv/
 
 # Outputs
 outputs/models/*.pth
+outputs/**/models/*.pth
 outputs/logs/*
 outputs/metrics/*
 outputs/figures/*
@@ -25,6 +26,8 @@ outputs/figures/*
 data/raw/*
 !data/raw/.gitkeep
 
-# Optional: ignore processed data if large
-# data/processed/*
-# !data/processed/.gitkeep
+# Patient data and derived datasets
+data/grade_by_modality/**
+data/grade_by_modality_axial_9_15/**
+data/processed/**
+!data/processed/.gitkeep
