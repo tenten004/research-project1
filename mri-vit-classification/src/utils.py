@@ -34,6 +34,58 @@ def set_seed(seed: int) -> None:
     torch.backends.cudnn.benchmark = False
 
 
+def compute_class_counts(targets: List[int], num_classes: int) -> torch.Tensor:
+    # クラスごとのサンプル数を集計
+    if not targets:
+        return torch.zeros(num_classes, dtype=torch.float)
+    counts = torch.bincount(torch.tensor(targets), minlength=num_classes).float()
+    return counts
+
+
+def compute_class_weights_from_counts(
+    counts: torch.Tensor,
+    method: str = "inverse",
+    effective_beta: float = 0.9999,
+    power: float = 1.0,
+) -> torch.Tensor:
+    # クラスごとの重みを計算
+    if method == "none":
+        return torch.ones_like(counts)
+
+    weights = torch.zeros_like(counts)
+    valid = counts > 0
+
+    if method == "inverse":
+        weights[valid] = counts[valid].pow(-power)
+    elif method == "effective":
+        beta = effective_beta
+        weights[valid] = (1.0 - beta) / (1.0 - torch.pow(beta, counts[valid]))
+    else:
+        raise ValueError(f"Unsupported class weight method: {method}")
+
+    if weights.sum() > 0:
+        weights = weights / weights.sum() * len(weights)
+    return weights
+
+
+def compute_class_weights(
+    targets: List[int],
+    num_classes: int,
+    method: str = "inverse",
+    effective_beta: float = 0.9999,
+    power: float = 1.0,
+) -> torch.Tensor:
+    # ラベル一覧からクラス重みを計算
+    counts = compute_class_counts(targets, num_classes)
+    return compute_class_weights_from_counts(counts, method=method, effective_beta=effective_beta, power=power)
+
+
+def compute_sample_weights(targets: List[int], class_weights: torch.Tensor) -> torch.Tensor:
+    # サンプルごとの重みを作成
+    weights = torch.tensor([class_weights[t].item() for t in targets], dtype=torch.double)
+    return weights
+
+
 def save_epoch_log(history: Dict[str, List[float]], output_csv: Path) -> None:
     # エポックごとの履歴を CSV に保存
     output_csv.parent.mkdir(parents=True, exist_ok=True)

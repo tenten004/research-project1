@@ -10,6 +10,9 @@ param(
   [string]$OutputRoot = "data/grade_by_modality",
   [double]$TrainRatio = 0.8,
   [double]$ValRatio = 0.1,
+  [Nullable[int]]$AxialMin = $null,
+  [Nullable[int]]$AxialMax = $null,
+  [string]$AxialCol = "axial",
   [switch]$CleanOutput
 )
 
@@ -45,6 +48,19 @@ if ($CleanOutput -and (Test-Path $OutputRoot)) {
   Remove-Item -Path $OutputRoot -Recurse -Force
 }
 
+$axialArgs = @()
+if ($AxialMin -ne $null -or $AxialMax -ne $null) {
+  if (-not [string]::IsNullOrWhiteSpace($AxialCol)) {
+    $axialArgs += @("--axial-col", $AxialCol)
+  }
+  if ($AxialMin -ne $null) {
+    $axialArgs += @("--axial-min", "$AxialMin")
+  }
+  if ($AxialMax -ne $null) {
+    $axialArgs += @("--axial-max", "$AxialMax")
+  }
+}
+
 function Invoke-PrepareForModality {
   param(
     [string]$Csv,
@@ -69,7 +85,8 @@ function Invoke-PrepareForModality {
     --include-modalities FL T1 T2 `
     --train-ratio $TrainRatio `
     --val-ratio $ValRatio `
-    --copy-mode copy
+    --copy-mode copy `
+    @axialArgs
 }
 
 if ($hasSeparateCsv) {
@@ -100,7 +117,8 @@ else {
       --train-ratio $TrainRatio `
       --val-ratio $ValRatio `
       --copy-mode copy `
-      --clean-output
+      --clean-output `
+      @axialArgs
   }
   else {
     python -m src.prepare_grade_dataset `
@@ -114,6 +132,7 @@ else {
       --include-modalities FL T1 T2 `
       --train-ratio $TrainRatio `
       --val-ratio $ValRatio `
-      --copy-mode copy
+      --copy-mode copy `
+      @axialArgs
   }
 }

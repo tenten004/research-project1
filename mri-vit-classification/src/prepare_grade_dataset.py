@@ -35,6 +35,18 @@ def _resolve_source_path(image_root: Path, modality: str, filename: str) -> Opti
     return None
 
 
+def _parse_int(value: Optional[str]) -> Optional[int]:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    try:
+        return int(float(cleaned))
+    except ValueError:
+        return None
+
+
 def _safe_split(
     items: List[str],
     labels: List[int],
@@ -147,6 +159,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--name-col", type=str, default="name", help="CSV column for image filename.")
     parser.add_argument("--id-col", type=str, default="ID", help="CSV column for patient ID.")
     parser.add_argument("--label-col", type=str, default="wm", help="CSV column for grade label (0-4).")
+    parser.add_argument("--axial-col", type=str, default="axial", help="CSV column for axial index.")
+    parser.add_argument("--axial-min", type=int, default=None, help="Minimum axial index to include.")
+    parser.add_argument("--axial-max", type=int, default=None, help="Maximum axial index to include.")
     parser.add_argument(
         "--modality-source",
         type=str,
@@ -212,6 +227,8 @@ def main() -> None:
     fixed_modality = args.fixed_modality.strip().upper()
     if fixed_modality and fixed_modality not in {"FL", "T1", "T2"}:
         raise ValueError("--fixed-modality must be one of FL, T1, T2")
+    if args.axial_min is not None and args.axial_max is not None and args.axial_min > args.axial_max:
+        raise ValueError("--axial-min must be <= --axial-max")
 
     modalities = {m.upper() for m in args.include_modalities}
     entries_by_modality: Dict[str, List[Dict[str, str]]] = defaultdict(list)
@@ -238,6 +255,17 @@ def main() -> None:
             if label < 0:
                 invalid_rows.append((line_no, f"negative label: {label}"))
                 continue
+
+            if args.axial_min is not None or args.axial_max is not None:
+                axial_raw = row.get(args.axial_col)
+                axial_val = _parse_int(axial_raw)
+                if axial_val is None:
+                    invalid_rows.append((line_no, f"invalid axial: {axial_raw}"))
+                    continue
+                if args.axial_min is not None and axial_val < args.axial_min:
+                    continue
+                if args.axial_max is not None and axial_val > args.axial_max:
+                    continue
 
             if fixed_modality:
                 modality = fixed_modality

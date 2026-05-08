@@ -85,10 +85,31 @@ data/grade_by_modality/
   summary_counts.csv
 ```
 
+### 3-1. Axial 9-15 だけを使う場合
+
+Axial の列がある CSV を使い、9-15 のみ抽出します。
+
+```powershell
+./scripts/run_prepare_grade_dataset.ps1 `
+  -ImageRoot "C:/path/to/labeled_image" `
+  -CsvPathFL "C:/path/to/labeled_image_list_FL_preprocess.csv" `
+  -CsvPathT1 "C:/path/to/labeled_image_list_T1_preprocess.csv" `
+  -CsvPathT2 "C:/path/to/labeled_image_list_T2_preprocess.csv" `
+  -OutputRoot "data/grade_by_modality_axial_9_15" `
+  -AxialMin 9 -AxialMax 15 `
+  -CleanOutput
+```
+
 ## 4. 学習を実行 (ViT, FL/T1/T2)
 
 ```powershell
 ./scripts/run_train_grade_modalities.ps1
+```
+
+Axial 9-15 用は以下を使います。
+
+```powershell
+./scripts/run_train_grade_modalities_axial_9_15.ps1
 ```
 
 内部で以下の設定を順に使います。
@@ -101,6 +122,12 @@ data/grade_by_modality/
 
 ```powershell
 ./scripts/run_eval_grade_modalities.ps1
+```
+
+Axial 9-15 用は以下を使います。
+
+```powershell
+./scripts/run_eval_grade_modalities_axial_9_15.ps1
 ```
 
 ## 6. 結果を確認

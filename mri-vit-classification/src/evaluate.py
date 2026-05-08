@@ -3,7 +3,7 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
-from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, roc_auc_score
 
 from src.dataset import build_dataloaders
 from src.model import build_model
@@ -26,9 +26,14 @@ def evaluate_once(model, loader, device: torch.device, num_classes: int):
 
     f1_average = "binary" if num_classes == 2 else "macro"
 
+    labels = list(range(num_classes))
+    cm = confusion_matrix(targets_all, preds_all, labels=labels)
+
     result = {
         "accuracy": accuracy_score(targets_all, preds_all),
         "f1": f1_score(targets_all, preds_all, average=f1_average, zero_division=0),
+        "confusion_matrix": cm.tolist(),
+        "confusion_matrix_labels": labels,
     }
 
     try:
@@ -60,6 +65,8 @@ def main():
         num_workers=cfg["data"]["num_workers"],
         mean=cfg["data"]["mean"],
         std=cfg["data"]["std"],
+        augmentation=cfg.get("augmentation"),
+        sampler={"type": "none"},
     )
 
     model = build_model(args.model, cfg["model"]["num_classes"], cfg["model"]["vit_name"]).to(device)

@@ -8,8 +8,18 @@ import torch.optim as optim
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 
 from src.dataset import build_dataloaders
+from src.losses import FocalLoss
 from src.model import build_model
-from src.utils import ensure_dirs, load_config, save_comparison_csv, save_epoch_log, save_summary, set_seed
+from src.utils import (
+    compute_class_counts,
+    compute_class_weights,
+    ensure_dirs,
+    load_config,
+    save_comparison_csv,
+    save_epoch_log,
+    save_summary,
+    set_seed,
+)
 from src.visualize import plot_learning_curves, save_vit_attention_map
 
 
@@ -83,7 +93,31 @@ def run_training(model_name: str, cfg: Dict[str, Any], dataloaders, device: torc
     ).to(device)
 
     # 損失関数と最適化手法を定義
-    criterion = nn.CrossEntropyLoss()
+    loss_cfg = cfg.get("loss", {})
+    loss_name = loss_cfg.get("name", "cross_entropy")
+    class_weighting = loss_cfg.get("class_weighting", "none")
+    effective_beta = float(loss_cfg.get("effective_beta", 0.9999))
+    power = float(loss_cfg.get("power", 1.0))
+    label_smoothing = float(loss_cfg.get("label_smoothing", 0.0))
+
+    class_weights = None
+    if class_weighting != "none":
+        train_targets = dataloaders["train"].dataset.targets
+        class_weights = compute_class_weights(
+            train_targets,
+            cfg["model"]["num_classes"],
+            method=class_weighting,
+            effective_beta=effective_beta,
+            power=power,
+        ).to(device)
+
+    if loss_name == "focal":
+        focal_gamma = float(loss_cfg.get("focal_gamma", 2.0))
+        criterion = FocalLoss(gamma=focal_gamma, weight=class_weights)
+    elif loss_name == "cross_entropy":
+        criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=label_smoothing)
+    else:
+        raise ValueError(f"Unsupported loss name: {loss_name}")
     optimizer = optim.AdamW(
         model.parameters(),
         lr=cfg["train"]["lr"],
@@ -170,8 +204,13 @@ def main():
         num_workers=cfg["data"]["num_workers"],
         mean=cfg["data"]["mean"],
         std=cfg["data"]["std"],
+        augmentation=cfg.get("augmentation"),
+        sampler=cfg.get("train", {}).get("sampler"),
     )
     print("class_to_idx:", class_to_idx)
+
+    train_counts = compute_class_counts(dataloaders["train"].dataset.targets, cfg["model"]["num_classes"])
+    print("class_counts:", train_counts.tolist())
 
     rows: List[Dict[str, Any]] = []
     for model_name in args.models:
