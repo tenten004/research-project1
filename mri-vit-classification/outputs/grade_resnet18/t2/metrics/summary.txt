@@ -1,0 +1,9 @@
+Model Comparison Results
+================================
+Model: resnet18
+  Accuracy: 0.5880
+  F1-score: 0.3149
+  ROC-AUC: 0.7749
+  Best Val Loss: 0.9566
+  Best Epoch: 1
+--------------------------------
