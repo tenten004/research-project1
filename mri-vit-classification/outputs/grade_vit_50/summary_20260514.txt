@@ -1,0 +1,56 @@
+結果サマリー（2026-05-14時点）
+
+1. 対象と設定
+- データ: grade_by_modality (FL/T1/T2), 5クラス, val split評価
+- ViT(50epoch): vit_base_patch16_224, image_size=224, mean/std=0.5, batch_size=16, lr=1e-4, weight_decay=1e-4, seed=42
+- 評価: outputs/grade_vit_50/<mod>/models/vit_best.pth を使用
+- ResNet18: 30epoch学習ログのみ (評価JSONなし)
+
+2. ViT 50epoch val評価
+- FL: acc=0.5244, f1=0.3101, roc_auc=0.7559
+- T1: acc=0.5158, f1=0.2118, roc_auc=0.6648
+- T2: acc=0.5512, f1=0.2731, roc_auc=0.7152
+
+3. 混同行列の所見（主要な偏り）
+FL:
+  - 真のクラス分布: 0:1162, 1:1111, 2:232, 3:137, 4:24
+  - 予測は0/1に集中。クラス4は予測0件、クラス2/3も極少。
+  - 例: 真2は1へ163件、真3は1へ88件、真4は1へ13件。
+
+T1:
+  - 真のクラス分布: 0:1276, 1:1016, 2:254, 3:94, 4:22
+  - 予測が0/1のみ。クラス2–4の予測が0件。
+  - 例: 真2は0へ158件・1へ96件、真4は0へ3件・1へ19件。
+
+T2:
+  - 真のクラス分布: 0:1275, 1:1020, 2:254, 3:94, 4:22
+  - 予測は0/1が大半。クラス2は予測0件、クラス4は予測2件のみ。
+  - 例: 真3は1へ53件、真4は1へ14件。
+
+4. ResNet18 学習ログの要約（val）
+FL:
+  - best val_acc 0.575 (epoch 4)
+  - best val_f1 0.461 (epoch 4)
+  - best val_roc_auc 0.803 (epoch 5)
+
+T1:
+  - best val_acc 0.568 (epoch 1)
+  - best val_f1 0.301 (epoch 21)
+  - best val_roc_auc 0.713 (epoch 4)
+
+T2:
+  - best val_acc 0.595 (epoch 5)
+  - best val_f1 0.357 (epoch 2)
+  - best val_roc_auc 0.775 (epoch 1)
+
+※ResNet18は30epochのログのみで、最終モデルの別評価は未実施。
+
+5. アテンションマップ
+- ViT 50epochのvalから「正解かつ高信頼」を各モダリティ5枚抽出。
+- outputs/grade_vit_50/<mod>/figures/attention にPNGと一覧CSVを保存。
+- fused attentionを無効化して注意マップを取得。
+
+6. 現状の読み取り
+- 3モダリティ共通で高グレード(2–4)がほぼ予測されず、強いクラス不均衡の影響が推測される。
+- ViTはROC-AUCが0.66–0.76だが、F1は0.21–0.31と低く、少数クラスを拾えていない。
+- ResNet18は早いepochでval指標がピークになっており、学習初期で性能が頭打ち。
