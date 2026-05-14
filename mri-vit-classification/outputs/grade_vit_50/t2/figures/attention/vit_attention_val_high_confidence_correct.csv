@@ -1,0 +1,6 @@
+rank,index,true,pred,confidence,output_file
+1,416,0,0,0.9524758458137512,outputs/grade_vit_50/t2/figures/attention/vit_attn_val_01_idx416_t0_p0.png
+2,7,0,0,0.9499973058700562,outputs/grade_vit_50/t2/figures/attention/vit_attn_val_02_idx7_t0_p0.png
+3,395,0,0,0.9368991255760193,outputs/grade_vit_50/t2/figures/attention/vit_attn_val_03_idx395_t0_p0.png
+4,679,0,0,0.9348569512367249,outputs/grade_vit_50/t2/figures/attention/vit_attn_val_04_idx679_t0_p0.png
+5,392,0,0,0.9303014278411865,outputs/grade_vit_50/t2/figures/attention/vit_attn_val_05_idx392_t0_p0.png
