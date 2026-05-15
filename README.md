@@ -1,300 +1,262 @@
 # research-project1
 卒研のためのgithub
-① WeightedRandomSampler 導入（最優先）
-目的
 
-今の最大問題：
+# 大脳白質病変CNN先行研究 再現実験 指示文
 
-予測が 0/1 に崩壊している
+## 目的
 
-これを止める。
+先行研究「畳み込みニューラルネットワークを用いた大脳白質病変のグレード予測」における実験条件を可能な限り再現し，報告された性能（test accuracy ≒ 0.9209）に近い結果を得ることを目的とする．
 
-なぜ必要か
+---
 
-現在の分布：
+# 再現対象
 
-0: 1200前後
-1: 1000前後
-2: 200前後
-3: 100前後
-4: 20前後
+## 最良条件
 
-極端。
+* モデル：CNN
+* 撮像法：FLAIR + T1
+* axial：9-15
+* range：7
+* 画像サイズ：80×80
+* クラス数：5（grade0-4）
+* optimizer：RMSprop
+* learning rate：0.0001
+* decay：1e-6
+* batch size：32
+* epochs：200
+* 評価指標：test accuracy
 
-普通にshuffleして学習すると、
+---
 
-1 batch中に class4 が存在しない
+# データセット条件
 
-ことが多発する。
+## 使用データ
 
-するとモデルは：
+以下のcsvを使用する．
 
-4を覚える意味がない
+* MRI_list_FL_1146.csv
+* MRI_list_T1_1146.csv
+* MRI_list_T2_1146.csv
 
-と判断する。
+各csvには少なくとも以下の列が存在すること．
 
-WeightedRandomSampler の役割
+* name
+* wm
+* axial
 
-少数クラスを「何回も出す」。
+---
+
+# 使用画像条件
+
+## 使用モダリティ
+
+FLAIR画像 + T1強調画像
+
+コード上では：
+
+```python
+method = 6
+```
+
+---
+
+## 使用axial
+
+以下の範囲のみ使用する．
+
+```python
+start = 9
+end = 15
+```
 
 つまり：
 
-class4 を意図的に何度も学習
+* axial 9
+* axial 10
+* axial 11
+* axial 12
+* axial 13
+* axial 14
+* axial 15
 
-させる。
+の計7枚を使用する．
 
-実装
-1. ラベル一覧取得
-labels = train_dataset.labels
-2. クラス数カウント
-import numpy as np
+---
 
-class_count = np.bincount(labels)
-print(class_count)
-3. 重み作成
-weights = 1. / class_count
+# 前処理条件
+
+## 画像サイズ
+
+すべての画像を以下へresizeする．
+
+```python
+image_size = 80
+```
+
+---
+
+## カラーモード
+
+RGB変換を使用する．
+
+```python
+image.convert("RGB")
+```
+
+---
+
+## 正規化
+
+0-255を0-1へ正規化する．
+
+```python
+x_train = x_train / 255.0
+x_test = x_test / 255.0
+```
+
+---
+
+# データ分割
+
+## train/test split
+
+以下を使用する．
+
+```python
+train_test_split(X, Y)
+```
+
+※ 注意：
+このコードは患者単位分割ではなく，画像単位分割である可能性が高い．
+先行研究再現フェーズでは，まずこの条件を忠実に再現する．
+
+---
+
+# CNN構造
+
+```python
+Conv2D(32, (3,3), padding='same', activation='relu')
+Conv2D(32, (3,3), activation='relu')
+MaxPooling2D((2,2))
+Dropout(0.25)
+
+Conv2D(32, (3,3), padding='same', activation='relu')
+Conv2D(32, (3,3), padding='same', activation='relu')
+MaxPooling2D((2,2))
+
+Flatten()
+
+Dropout(0.25)
+
+Dense(512, activation='relu')
+
+Dropout(0.5)
+
+Dense(5, activation='softmax')
+```
+
+---
+
+# 学習条件
+
+## optimizer
+
+```python
+RMSprop(
+    learning_rate=0.0001,
+    decay=1e-6
+)
+```
+
+---
+
+## loss function
+
+```python
+categorical_crossentropy
+```
+
+---
+
+## metrics
+
+```python
+accuracy
+```
+
+---
+
+## batch size
+
+```python
+32
+```
+
+---
+
+## epochs
+
+```python
+200
+```
+
+---
+
+# 保存項目
+
+以下を毎実験保存すること．
+
+* train accuracy
+* test accuracy
+* train loss
+* test loss
+* 学習曲線
+* loss曲線
+* 実験条件
+
+---
+
+# 実験管理
+
+## 実験番号
+
+各実験にexp_numを割り当てる．
 
 例：
 
-0 -> 0.0008
-4 -> 0.05
+```python
+python train.py 1 6 9 15
+```
 
-みたいになる。
+意味：
 
-つまり：
+* exp_num = 1
+* method = 6（FLAIR+T1）
+* start = 9
+* end = 15
 
-少数クラスほど大きい重み
-4. 各サンプルに重み付与
-sample_weights = [weights[t] for t in labels]
-5. sampler作成
-from torch.utils.data import WeightedRandomSampler
+---
 
-sampler = WeightedRandomSampler(
-    sample_weights,
-    num_samples=len(sample_weights),
-    replacement=True
-)
-6. DataLoader変更
-train_loader = DataLoader(
-    train_dataset,
-    batch_size=16,
-    sampler=sampler,
-    num_workers=4
-)
+# 再現実験の到達目標
 
-※ shuffle=True は消す。
+## 目標性能
 
-期待される変化
-Before
-pred:
-0 0 1 0 1 1 0 0
-After
-pred:
-0 1 2 1 3 0 4
+```text
+test accuracy ≒ 0.9209
+```
 
-みたいに、
+完全一致ではなく，近い性能が得られるかを確認する．
 
-「少数クラスを出す勇気」
+---
 
-が生まれる。
+# 再現後の次段階
 
-最重要ポイント
+再現完了後に以下を検討する．
 
-accuracy は下がる可能性ある。
+1. 患者単位split導入
+2. class imbalance対策
+3. ViT導入
+4. 全axial利用
+5. augmentation導入
 
-でも：
-
-macro-F1
-recall
-
-は改善する可能性が高い。
-
-ここ超重要。
-
-② class weight 付き CrossEntropy
-目的
-
-モデルへ：
-
-「class4外したら重罪」
-
-を教える。
-
-なぜ必要？
-
-今のCrossEntropyは：
-
-class0 を外す
-class4 を外す
-
-をほぼ同じ重みで扱う。
-
-でも実際は：
-
-class4 は超貴重
-
-だから重みを付ける。
-
-実装
-まずクラス数
-
-例：
-
-class_count = [1162,1111,232,137,24]
-inverse frequency
-weights = [1/x for x in class_count]
-
-ただしそのままだと極端なので、
-
-実用的にはこれくらい
-weights = torch.tensor([
-    1.0,
-    1.0,
-    3.0,
-    5.0,
-    10.0
-]).to(device)
-損失関数
-criterion = nn.CrossEntropyLoss(weight=weights)
-
-これだけ。
-
-期待される変化
-
-今：
-
-4 を無視しても痛くない
-
-↓
-
-導入後：
-
-4 を無視すると損失爆増
-sampler と併用する理由
-sampler
-
-→ 「見る回数」を増やす
-
-class weight
-
-→ 「外した罰」を増やす
-
-両方必要。
-
-③ モデル保存基準を macro-F1 に変更
-これ超重要
-
-今たぶん：
-
-best_acc
-
-で保存してる。
-
-これが危険。
-
-なぜ？
-
-accuracy最大化すると：
-
-0/1だけ出すモデル
-
-が有利。
-
-今の状態
-
-例えば：
-
-0,1 が90%
-
-なら、
-
-全部0/1
-
-でも accuracy 高くなる。
-
-だから macro-F1
-
-macro-F1 は：
-
-各クラスを平等扱い
-
-する。
-
-なので：
-
-class4 無視
-
-すると点数が落ちる。
-
-実装
-sklearn
-from sklearn.metrics import f1_score
-validation後
-macro_f1 = f1_score(
-    y_true,
-    y_pred,
-    average="macro"
-)
-best更新
-if macro_f1 > best_f1:
-    best_f1 = macro_f1
-    torch.save(model.state_dict(), save_path)
-期待される変化
-
-Before:
-
-accuracy重視
-↓
-多数派特化
-
-After:
-
-全クラスを拾う方向
-④ confusion matrix を毎epoch確認
-目的
-
-「本当に改善したか」を見る。
-
-超重要
-
-accuracyだけ見ると騙される。
-
-今まさにそれ。
-
-見るべきポイント
-BEFORE
-pred:
-0/1 only
-AFTER
-
-最低でも：
-
-2/3/4 が出始める
-
-これが第一歩。
-
-注意
-
-最初は：
-
-誤検出増加
-
-する可能性高い。
-
-でも正常。
-
-なぜなら：
-
-「少数クラスを出す練習」
-
-が始まったから。
-
-まず最初の目標
-目標①
-class2–4 が予測される
-目標②
-macro-F1改善
-目標③
-class別 recall改善
-
-accuracyは後回し。
+ただし，再現実験中は条件を変更しないこと．
