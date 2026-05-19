@@ -1,0 +1,2 @@
+exp_num,method,start,end,axial,axial_range,batch_size,epochs,image_size,lr,decay,num_of_images,elapsed_time,train_accuracy,test_accuracy,train_loss,test_loss
+1,6,9,15,9_15,7,32,200,80,0.0001,1e-06,16037,4290.62740778923,0.9986696839332581,0.9152119755744934,0.024554608389735222,0.23028990626335144
