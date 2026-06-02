@@ -69,7 +69,12 @@ def main():
         sampler={"type": "none"},
     )
 
-    model = build_model(args.model, cfg["model"]["num_classes"], cfg["model"]["vit_name"]).to(device)
+    model = build_model(
+        args.model,
+        cfg["model"]["num_classes"],
+        cfg["model"]["vit_name"],
+        image_size=cfg["data"]["image_size"],
+    ).to(device)
     ckpt_path = Path(cfg["output"]["output_dir"]) / "models" / f"{args.model}_best.pth"
     model.load_state_dict(torch.load(ckpt_path, map_location=device))
 

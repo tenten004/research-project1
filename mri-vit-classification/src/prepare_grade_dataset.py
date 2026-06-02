@@ -129,6 +129,55 @@ def _split_patient_ids(
     return {"train": set(train_ids), "val": set(val_ids), "test": set(test_ids)}
 
 
+def _ensure_min_test_per_class(
+    split_patients: Dict[str, set],
+    patient_to_labels: Dict[str, List[int]],
+    min_per_class: int,
+) -> Tuple[Dict[str, set], List[str]]:
+    if min_per_class <= 0:
+        return split_patients, []
+
+    all_labels = sorted({label for labels in patient_to_labels.values() for label in labels})
+    warnings: List[str] = []
+
+    def _count_in_test(label: int) -> int:
+        return sum(1 for pid in split_patients["test"] if label in patient_to_labels.get(pid, []))
+
+    for label in all_labels:
+        needed = min_per_class - _count_in_test(label)
+        while needed > 0:
+            train_candidates = [pid for pid in split_patients["train"] if label in patient_to_labels.get(pid, [])]
+            val_candidates = [pid for pid in split_patients["val"] if label in patient_to_labels.get(pid, [])]
+
+            pid = None
+            if train_candidates and len(split_patients["train"]) > 1:
+                pid = train_candidates[-1]
+                split_patients["train"].remove(pid)
+            elif val_candidates and len(split_patients["val"]) > 1:
+                pid = val_candidates[-1]
+                split_patients["val"].remove(pid)
+            elif train_candidates:
+                pid = train_candidates[-1]
+                split_patients["train"].remove(pid)
+            elif val_candidates:
+                pid = val_candidates[-1]
+                split_patients["val"].remove(pid)
+
+            if pid is None:
+                break
+
+            split_patients["test"].add(pid)
+            needed -= 1
+
+        if needed > 0:
+            warnings.append(
+                f"label {label}: test has {_count_in_test(label)} patient(s),"
+                f" unable to reach min_test_per_class={min_per_class}"
+            )
+
+    return split_patients, warnings
+
+
 def _next_available_path(path: Path) -> Path:
     if not path.exists():
         return path
@@ -190,6 +239,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--train-ratio", type=float, default=0.8)
     parser.add_argument("--val-ratio", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--min-test-per-class",
+        type=int,
+        default=0,
+        help="Minimum number of patients per class in the test split.",
+    )
     parser.add_argument(
         "--copy-mode",
         type=str,
@@ -318,6 +373,14 @@ def main() -> None:
             val_ratio=args.val_ratio,
             seed=args.seed,
         )
+        if args.min_test_per_class > 0:
+            split_patients, warnings = _ensure_min_test_per_class(
+                split_patients=split_patients,
+                patient_to_labels=patient_to_labels,
+                min_per_class=args.min_test_per_class,
+            )
+            for msg in warnings:
+                print("[WARN]", msg)
 
         split_counts: Dict[str, Counter] = {
             "train": Counter(),

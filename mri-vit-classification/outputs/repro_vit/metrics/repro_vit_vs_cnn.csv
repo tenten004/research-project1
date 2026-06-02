@@ -1,0 +1,3 @@
+model,split,accuracy,f1,roc_auc,loss,epochs,notes
+vit,val,0.9074812967581047,0.9004461065885649,0.9839906758152275,0.34831119241051267,173,"ViT repro (FL+T1, axial 9-15, 80px, image-level split)"
+cnn,test,0.9152119755744934,,,0.23028990626335144,200,"CNN repro (FL+T1, axial 9-15, 80px, image-level split)"

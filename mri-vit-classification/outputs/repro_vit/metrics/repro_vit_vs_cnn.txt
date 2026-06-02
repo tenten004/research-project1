@@ -1,0 +1,15 @@
+Repro Comparison (ViT vs CNN)
+================================
+ViT (val):
+  accuracy: 0.9074812967581047
+  f1: 0.9004461065885649
+  roc_auc: 0.9839906758152275
+  best_val_loss: 0.34831119241051267
+  best_epoch: 173
+
+CNN (test):
+  accuracy: 0.9152119755744934
+  loss: 0.23028990626335144
+  epochs: 200
+
+Note: ViT uses val split; CNN reports test split from repro script.

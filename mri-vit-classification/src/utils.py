@@ -111,7 +111,16 @@ def save_epoch_log(history: Dict[str, List[float]], output_csv: Path) -> None:
 def save_comparison_csv(rows: List[Dict[str, Any]], output_csv: Path) -> None:
     # モデル比較結果を1つの表にまとめる
     output_csv.parent.mkdir(parents=True, exist_ok=True)
-    fields = ["model", "accuracy", "f1", "roc_auc", "best_val_loss", "best_epoch"]
+    fields = [
+        "model",
+        "accuracy",
+        "f1",
+        "roc_auc",
+        "best_val_loss",
+        "best_metric",
+        "best_metric_value",
+        "best_epoch",
+    ]
     with output_csv.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
@@ -131,6 +140,10 @@ def save_summary(rows: List[Dict[str, Any]], output_txt: Path) -> None:
             f.write(f"  F1-score: {row['f1']:.4f}\n")
             f.write(f"  ROC-AUC: {row['roc_auc']:.4f}\n")
             f.write(f"  Best Val Loss: {row['best_val_loss']:.4f}\n")
+            if row.get("best_metric") is not None:
+                f.write(f"  Best Metric: {row['best_metric']}\n")
+                if row.get("best_metric_value") is not None:
+                    f.write(f"  Best Metric Value: {row['best_metric_value']:.4f}\n")
             f.write(f"  Best Epoch: {row['best_epoch']}\n")
             f.write("-" * 32 + "\n")
 

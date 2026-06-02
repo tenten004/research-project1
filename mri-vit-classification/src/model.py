@@ -7,10 +7,13 @@ from torchvision import models
 ModelName = Literal["vit", "resnet18"]
 
 
-def build_model(model_name: ModelName, num_classes: int, vit_name: str) -> nn.Module:
+def build_model(model_name: ModelName, num_classes: int, vit_name: str, image_size: int | None = None) -> nn.Module:
     # ViT: 事前学習済み重みを利用し、最終分類ヘッドのクラス数のみ合わせる
     if model_name == "vit":
-        return timm.create_model(vit_name, pretrained=True, num_classes=num_classes)
+        kwargs = {"pretrained": True, "num_classes": num_classes}
+        if image_size is not None:
+            kwargs["img_size"] = image_size
+        return timm.create_model(vit_name, **kwargs)
 
     # ResNet18: 最終全結合層を2クラス分類用に差し替える
     if model_name == "resnet18":

@@ -10,6 +10,7 @@ param(
   [string]$OutputRoot = "data/grade_by_modality",
   [double]$TrainRatio = 0.8,
   [double]$ValRatio = 0.1,
+  [int]$MinTestPerClass = 0,
   [Nullable[int]]$AxialMin = $null,
   [Nullable[int]]$AxialMax = $null,
   [string]$AxialCol = "axial",
@@ -85,6 +86,7 @@ function Invoke-PrepareForModality {
     --include-modalities FL T1 T2 `
     --train-ratio $TrainRatio `
     --val-ratio $ValRatio `
+    --min-test-per-class $MinTestPerClass `
     --copy-mode copy `
     @axialArgs
 }
@@ -116,6 +118,7 @@ else {
       --include-modalities FL T1 T2 `
       --train-ratio $TrainRatio `
       --val-ratio $ValRatio `
+        --min-test-per-class $MinTestPerClass `
       --copy-mode copy `
       --clean-output `
       @axialArgs
@@ -132,6 +135,7 @@ else {
       --include-modalities FL T1 T2 `
       --train-ratio $TrainRatio `
       --val-ratio $ValRatio `
+      --min-test-per-class $MinTestPerClass `
       --copy-mode copy `
       @axialArgs
   }
