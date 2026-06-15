@@ -1,0 +1,2 @@
+model,accuracy,f1,roc_auc,best_val_loss,best_metric,best_metric_value,best_epoch
+vit,0.8451763290472968,0.8003247556686779,0.9538893954311455,0.6316970643954435,loss,0.6316970643954435,125

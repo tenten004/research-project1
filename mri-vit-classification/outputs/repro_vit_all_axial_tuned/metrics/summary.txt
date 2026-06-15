@@ -1,0 +1,11 @@
+Model Comparison Results
+================================
+Model: vit
+  Accuracy: 0.5129
+  F1-score: 0.4274
+  ROC-AUC: 0.7975
+  Best Val Loss: 1.0113
+  Best Metric: f1
+  Best Metric Value: 0.4274
+  Best Epoch: 196
+--------------------------------
