@@ -111,7 +111,7 @@ def save_epoch_log(history: Dict[str, List[float]], output_csv: Path) -> None:
 def save_comparison_csv(rows: List[Dict[str, Any]], output_csv: Path) -> None:
     # モデル比較結果を1つの表にまとめる
     output_csv.parent.mkdir(parents=True, exist_ok=True)
-    fields = [
+    base_fields = [
         "model",
         "accuracy",
         "f1",
@@ -121,6 +121,17 @@ def save_comparison_csv(rows: List[Dict[str, Any]], output_csv: Path) -> None:
         "best_metric_value",
         "best_epoch",
     ]
+
+    extra_fields: List[str] = []
+    known = set(base_fields)
+    for row in rows:
+        for key in row.keys():
+            if key not in known:
+                known.add(key)
+                extra_fields.append(key)
+
+    fields = base_fields + extra_fields
+
     with output_csv.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
@@ -130,21 +141,48 @@ def save_comparison_csv(rows: List[Dict[str, Any]], output_csv: Path) -> None:
 
 def save_summary(rows: List[Dict[str, Any]], output_txt: Path) -> None:
     # 人が読みやすい要約をテキストで保存
+    def _fmt_float(value: Any) -> str:
+        try:
+            return f"{float(value):.4f}"
+        except (TypeError, ValueError):
+            return str(value)
+
+    def _fmt_int(value: Any) -> str:
+        try:
+            return str(int(value))
+        except (TypeError, ValueError):
+            return str(value)
+
     output_txt.parent.mkdir(parents=True, exist_ok=True)
     with output_txt.open("w", encoding="utf-8") as f:
         f.write("Model Comparison Results\n")
         f.write("=" * 32 + "\n")
         for row in rows:
             f.write(f"Model: {row['model']}\n")
-            f.write(f"  Accuracy: {row['accuracy']:.4f}\n")
-            f.write(f"  F1-score: {row['f1']:.4f}\n")
-            f.write(f"  ROC-AUC: {row['roc_auc']:.4f}\n")
-            f.write(f"  Best Val Loss: {row['best_val_loss']:.4f}\n")
+            f.write(f"  Accuracy: {_fmt_float(row['accuracy'])}\n")
+            f.write(f"  F1-score: {_fmt_float(row['f1'])}\n")
+            f.write(f"  ROC-AUC: {_fmt_float(row['roc_auc'])}\n")
+            f.write(f"  Best Val Loss: {_fmt_float(row['best_val_loss'])}\n")
             if row.get("best_metric") is not None:
                 f.write(f"  Best Metric: {row['best_metric']}\n")
                 if row.get("best_metric_value") is not None:
-                    f.write(f"  Best Metric Value: {row['best_metric_value']:.4f}\n")
-            f.write(f"  Best Epoch: {row['best_epoch']}\n")
+                    f.write(f"  Best Metric Value: {_fmt_float(row['best_metric_value'])}\n")
+            f.write(f"  Best Epoch: {_fmt_int(row['best_epoch'])}\n")
+
+            if row.get("peak_val_acc") is not None and row.get("peak_val_acc_epoch") is not None:
+                f.write(
+                    f"  Peak Val Accuracy: {_fmt_float(row['peak_val_acc'])} (epoch {_fmt_int(row['peak_val_acc_epoch'])})\n"
+                )
+            if row.get("peak_val_f1") is not None and row.get("peak_val_f1_epoch") is not None:
+                f.write(f"  Peak Val F1: {_fmt_float(row['peak_val_f1'])} (epoch {_fmt_int(row['peak_val_f1_epoch'])})\n")
+            if row.get("peak_val_roc_auc") is not None and row.get("peak_val_roc_auc_epoch") is not None:
+                f.write(
+                    f"  Peak Val ROC-AUC: {_fmt_float(row['peak_val_roc_auc'])}"
+                    f" (epoch {_fmt_int(row['peak_val_roc_auc_epoch'])})\n"
+                )
+            if row.get("metric_checkpoint_csv"):
+                f.write(f"  Metric Checkpoint CSV: {row['metric_checkpoint_csv']}\n")
+
             f.write("-" * 32 + "\n")
 
 

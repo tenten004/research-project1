@@ -1,0 +1,25 @@
+# Python and Jupyter working files
+.venv/
+**/__pycache__/
+**/.ipynb_checkpoints/
+*.py[cod]
+
+# Local medical data and generated datasets
+/labeled_image/*
+!/labeled_image/.gitignore
+/教師データ/*
+!/教師データ/.gitignore
+/mri-vit-classification/data/
+
+# Legacy local experiment workspace
+/4_学習/
+
+# Generated experiment outputs and model binaries
+/mri-vit-classification/outputs/
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.log
+*.log.err
+*.pid

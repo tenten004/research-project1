@@ -169,3 +169,40 @@ python -m src.evaluate --config config/config.yaml --model resnet18 --split val
 ./scripts/run_train_axial_9_15.ps1
 ./scripts/run_eval_axial_9_15.ps1
 ```
+
+## 10. 追加実験: 全アキシャル仮説の再検証
+
+### 10-1. 患者単位 split でデータ再作成
+
+```powershell
+./scripts/run_prepare_repro_vit_all_axial.ps1 `
+  -ImageRoot "C:/path/to/labeled_image" `
+  -CsvPathFL "C:/path/to/labeled_image_list_FL_preprocess.csv" `
+  -CsvPathT1 "C:/path/to/labeled_image_list_T1_preprocess.csv" `
+  -SplitMode patient `
+  -CleanOutput
+```
+
+### 10-2. 患者単位 split で ViT/CNN 学習
+
+```powershell
+./scripts/run_train_repro_all_axial_patient_split.ps1
+```
+
+### 10-3. ViT の指標別ベスト checkpoint 比較
+
+```powershell
+./scripts/run_eval_repro_vit_metric_checkpoints.ps1
+```
+
+学習後に次が自動出力されます。
+
+- `outputs/repro_vit_all_axial_patient_split/metrics/vit_best_metric_checkpoints.csv`
+
+### 10-4. ViT の患者単位スライス重み付け評価
+
+```powershell
+./scripts/run_eval_repro_vit_patient_pooling.ps1 -CheckpointMetric accuracy
+```
+
+患者単位評価JSON/CSVは `outputs/repro_vit_all_axial_patient_split/metrics/` 配下に保存されます。

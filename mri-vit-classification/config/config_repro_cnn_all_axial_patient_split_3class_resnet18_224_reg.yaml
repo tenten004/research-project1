@@ -1,0 +1,48 @@
+seed: 1
+
+data:
+  # 正則化DeiT-smallとの公平比較: 同一データ・解像度・正規化を使用
+  data_dir: data/repro_fl_t1_all_axial_patient_split_3class
+  image_size: 224
+  mean: 0.5
+  std: 0.5
+  num_workers: 4
+
+train:
+  batch_size: 16
+  epochs: 30
+  lr: 0.00003
+  weight_decay: 0.1
+  scheduler: cosine
+  best_metric: loss
+  checkpoint_metrics:
+    - loss
+    - accuracy
+    - f1
+    - roc_auc
+  optimizer:
+    name: adamw
+
+# 正則化DeiT-smallと同一の損失設定
+loss:
+  name: cross_entropy
+  label_smoothing: 0.1
+
+# 正則化DeiT-smallと同一のデータ拡張
+augmentation:
+  enabled: true
+  rotation: 15
+  hflip: 0.5
+  vflip: 0.0
+  brightness: 0.2
+  contrast: 0.2
+  gamma_min: 0.8
+  gamma_max: 1.2
+
+model:
+  # ResNet18ではvit_nameは参照されないが、共通設定スキーマのため保持
+  vit_name: deit_small_patch16_224
+  num_classes: 3
+
+output:
+  output_dir: outputs/repro_cnn_all_axial_patient_split_3class_resnet18_224_reg

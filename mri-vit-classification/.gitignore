@@ -26,8 +26,5 @@ outputs/figures/*
 data/raw/*
 !data/raw/.gitkeep
 
-# Patient data and derived datasets
-data/grade_by_modality/**
-data/grade_by_modality_axial_9_15/**
-data/processed/**
-!data/processed/.gitkeep
+# Patient data and derived datasets are local-only by default
+data/

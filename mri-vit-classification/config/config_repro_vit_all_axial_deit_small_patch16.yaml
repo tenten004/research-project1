@@ -1,0 +1,31 @@
+seed: 1
+
+data:
+  # ViT variant experiment: FL+T1 all axial
+  data_dir: data/repro_fl_t1_all_axial
+  # DeiT is pre-trained at 224 and benefits from finer token grids than 80.
+  image_size: 224
+  mean: 0.0
+  std: 1.0
+  num_workers: 0
+
+train:
+  # Keep epochs/splits same as repro, but reduce batch size for 224 input.
+  batch_size: 8
+  epochs: 200
+  # DeiT fine-tuning is usually more stable with AdamW + modest LR.
+  lr: 0.00003
+  weight_decay: 0.05
+  lr_decay: 0.000001
+  optimizer:
+    name: adamw
+
+augmentation:
+  enabled: false
+
+model:
+  vit_name: deit_small_patch16_224
+  num_classes: 5
+
+output:
+  output_dir: outputs/repro_vit_all_axial_deit_small_patch16_224

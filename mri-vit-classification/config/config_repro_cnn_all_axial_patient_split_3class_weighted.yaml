@@ -1,0 +1,46 @@
+seed: 1
+
+data:
+  # FL+T1 all-axial dataset with patient-level split, grades merged to 3 classes (0 / 1 / 2+)
+  data_dir: data/repro_fl_t1_all_axial_patient_split_3class
+  image_size: 80
+  mean: 0.0
+  std: 1.0
+  num_workers: 0
+
+train:
+  batch_size: 32
+  epochs: 200
+  lr: 0.0001
+  weight_decay: 0.0
+  lr_decay: 0.000001
+  best_metric: loss
+  checkpoint_metrics:
+    - loss
+    - accuracy
+    - f1
+    - roc_auc
+  optimizer:
+    name: rmsprop
+    momentum: 0.0
+    alpha: 0.99
+    eps: 1e-8
+    centered: false
+
+# 不均衡対策は「class-balanced loss のみ」を単独使用。
+# サンプラー・手動重み・focal は併用しない（過補正による崩壊を回避）。
+loss:
+  name: cross_entropy
+  class_weighting: effective
+  effective_beta: 0.9999
+  label_smoothing: 0.0
+
+augmentation:
+  enabled: false
+
+model:
+  vit_name: vit_base_patch16_224
+  num_classes: 3
+
+output:
+  output_dir: outputs/repro_cnn_all_axial_patient_split_3class_weighted

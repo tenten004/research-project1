@@ -1,5 +1,7 @@
 import argparse
 import csv
+import math
+import shutil
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -99,6 +101,64 @@ def save_confusion_matrix_csv(cm: List[List[int]], labels: List[int], output_csv
             writer.writerow([str(label)] + row)
 
 
+def save_metric_checkpoint_csv(rows: List[Dict[str, Any]], output_csv: Path) -> None:
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    fields = [
+        "checkpoint_metric",
+        "best_epoch",
+        "selection_value",
+        "loss",
+        "accuracy",
+        "f1",
+        "roc_auc",
+    ]
+    with output_csv.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+
+
+def _peak_value(values: List[float], mode: str) -> tuple[float, int]:
+    valid = [(idx + 1, v) for idx, v in enumerate(values) if not math.isnan(v)]
+    if not valid:
+        return float("nan"), 0
+
+    if mode == "max":
+        epoch, value = max(valid, key=lambda x: x[1])
+    elif mode == "min":
+        epoch, value = min(valid, key=lambda x: x[1])
+    else:
+        raise ValueError(f"Unsupported peak mode: {mode}")
+    return value, epoch
+
+
+def _metric_value(metrics: Dict[str, Any], metric_name: str) -> float:
+    if metric_name == "loss":
+        return float(metrics["loss"])
+    if metric_name == "accuracy":
+        return float(metrics["accuracy"])
+    if metric_name == "f1":
+        return float(metrics["f1"])
+    if metric_name == "roc_auc":
+        return float(metrics["roc_auc"])
+    raise ValueError(f"Unsupported metric name: {metric_name}")
+
+
+def _is_better(metric_name: str, current: float, best: float) -> bool:
+    if math.isnan(current):
+        return False
+    if metric_name == "loss":
+        return current < best
+    return current > best
+
+
+def _initial_best_value(metric_name: str) -> float:
+    if metric_name == "loss":
+        return float("inf")
+    return -float("inf")
+
+
 def run_training(model_name: str, cfg: Dict[str, Any], dataloaders, device: torch.device) -> Dict[str, Any]:
     # 設定からモデルを構築して実行デバイスへ配置
     model = build_model(
@@ -106,6 +166,8 @@ def run_training(model_name: str, cfg: Dict[str, Any], dataloaders, device: torc
         num_classes=cfg["model"]["num_classes"],
         vit_name=cfg["model"]["vit_name"],
         image_size=cfg["data"]["image_size"],
+        drop_rate=cfg["model"].get("drop_rate"),
+        drop_path_rate=cfg["model"].get("drop_path_rate"),
     ).to(device)
 
     # 損失関数と最適化手法を定義
@@ -165,7 +227,13 @@ def run_training(model_name: str, cfg: Dict[str, Any], dataloaders, device: torc
 
     lr_decay = float(cfg.get("train", {}).get("lr_decay", 0.0))
     scheduler = None
-    if lr_decay > 0:
+    scheduler_name = str(cfg.get("train", {}).get("scheduler", "")).lower()
+    if scheduler_name == "cosine":
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=int(cfg["train"]["epochs"]),
+        )
+    elif lr_decay > 0:
         scheduler = optim.lr_scheduler.LambdaLR(
             optimizer,
             lr_lambda=lambda epoch: 1.0 / (1.0 + lr_decay * epoch),
@@ -173,12 +241,26 @@ def run_training(model_name: str, cfg: Dict[str, Any], dataloaders, device: torc
 
     history = {"train_loss": [], "train_acc": [], "val_loss": [], "val_acc": [], "val_f1": [], "val_roc_auc": []}
     best_val_loss = float("inf")
-    best_epoch = 0
     best_metric_name = cfg.get("train", {}).get("best_metric", "loss")
-    best_metric_value = float("inf") if best_metric_name == "loss" else -float("inf")
+    tracked_metrics = cfg.get("train", {}).get("checkpoint_metrics", ["loss", "accuracy", "f1", "roc_auc"])
+    supported_metrics = {"loss", "accuracy", "f1", "roc_auc"}
+    tracked_metrics = [m for m in tracked_metrics if m in supported_metrics]
+    if best_metric_name not in supported_metrics:
+        raise ValueError(f"Unsupported best_metric: {best_metric_name}")
+    if best_metric_name not in tracked_metrics:
+        tracked_metrics.append(best_metric_name)
+
     save_cm = bool(cfg.get("train", {}).get("save_confusion_matrix", False))
     out_dir = Path(cfg["output"]["output_dir"])
     best_path = out_dir / "models" / f"{model_name}_best.pth"
+    metric_trackers: Dict[str, Dict[str, Any]] = {
+        metric_name: {
+            "best_value": _initial_best_value(metric_name),
+            "best_epoch": 0,
+            "path": out_dir / "models" / f"{model_name}_best_{metric_name}.pth",
+        }
+        for metric_name in tracked_metrics
+    }
 
     # エポックごとに学習・検証を繰り返す
     for epoch in range(1, cfg["train"]["epochs"] + 1):
@@ -195,31 +277,20 @@ def run_training(model_name: str, cfg: Dict[str, Any], dataloaders, device: torc
         print(
             f"[{model_name}] Epoch {epoch:02d}/{cfg['train']['epochs']} "
             f"train_loss={tr_loss:.4f} train_acc={tr_acc:.4f} "
-            f"val_loss={val['loss']:.4f} val_acc={val['accuracy']:.4f} val_f1={val['f1']:.4f} val_auc={val['roc_auc']:.4f}"
+            f"val_loss={val['loss']:.4f} val_acc={val['accuracy']:.4f} val_f1={val['f1']:.4f} val_auc={val['roc_auc']:.4f}",
+            flush=True,
         )
 
         if val["loss"] < best_val_loss:
             best_val_loss = val["loss"]
 
-        if best_metric_name == "loss":
-            current_metric = val["loss"]
-            is_better = current_metric < best_metric_value
-        elif best_metric_name == "accuracy":
-            current_metric = val["accuracy"]
-            is_better = current_metric > best_metric_value
-        elif best_metric_name == "f1":
-            current_metric = val["f1"]
-            is_better = current_metric > best_metric_value
-        elif best_metric_name == "roc_auc":
-            current_metric = val["roc_auc"]
-            is_better = current_metric > best_metric_value
-        else:
-            raise ValueError(f"Unsupported best_metric: {best_metric_name}")
-
-        if is_better:
-            best_metric_value = current_metric
-            best_epoch = epoch
-            torch.save(model.state_dict(), best_path)
+        for metric_name in tracked_metrics:
+            current_metric = _metric_value(val, metric_name)
+            tracker = metric_trackers[metric_name]
+            if _is_better(metric_name, current_metric, tracker["best_value"]):
+                tracker["best_value"] = current_metric
+                tracker["best_epoch"] = epoch
+                torch.save(model.state_dict(), tracker["path"])
 
         if save_cm:
             cm_path = out_dir / "metrics" / f"{model_name}_confusion_matrix_epoch{epoch:02d}.csv"
@@ -228,8 +299,45 @@ def run_training(model_name: str, cfg: Dict[str, Any], dataloaders, device: torc
         if scheduler is not None:
             scheduler.step()
 
+        save_epoch_log(history, out_dir / "logs" / f"{model_name}_epoch_log.csv")
+
     save_epoch_log(history, out_dir / "logs" / f"{model_name}_epoch_log.csv")
     plot_learning_curves(history, title=model_name, output_path=out_dir / "figures" / f"{model_name}_learning_curves.png")
+
+    primary_tracker = metric_trackers[best_metric_name]
+    if primary_tracker["best_epoch"] <= 0 or not primary_tracker["path"].exists():
+        # Fallback to loss checkpoint when chosen metric is never valid (e.g., roc_auc is NaN).
+        loss_tracker = metric_trackers.get("loss")
+        if loss_tracker and loss_tracker["best_epoch"] > 0 and loss_tracker["path"].exists():
+            primary_tracker = loss_tracker
+            best_metric_name = "loss"
+        else:
+            raise RuntimeError(f"No valid checkpoint was saved for model={model_name}.")
+
+    shutil.copy2(primary_tracker["path"], best_path)
+
+    metric_checkpoint_rows: List[Dict[str, Any]] = []
+    for metric_name in tracked_metrics:
+        tracker = metric_trackers[metric_name]
+        if tracker["best_epoch"] <= 0 or not tracker["path"].exists():
+            continue
+
+        model.load_state_dict(torch.load(tracker["path"], map_location=device))
+        ckpt_metrics = evaluate(model, dataloaders["val"], criterion, device, num_classes=cfg["model"]["num_classes"])
+        metric_checkpoint_rows.append(
+            {
+                "checkpoint_metric": metric_name,
+                "best_epoch": tracker["best_epoch"],
+                "selection_value": tracker["best_value"],
+                "loss": ckpt_metrics["loss"],
+                "accuracy": ckpt_metrics["accuracy"],
+                "f1": ckpt_metrics["f1"],
+                "roc_auc": ckpt_metrics["roc_auc"],
+            }
+        )
+
+    metric_ckpt_csv = out_dir / "metrics" / f"{model_name}_best_metric_checkpoints.csv"
+    save_metric_checkpoint_csv(metric_checkpoint_rows, metric_ckpt_csv)
 
     # ベスト重みを再読み込みして最終検証指標を計算
     model.load_state_dict(torch.load(best_path, map_location=device))
@@ -246,6 +354,11 @@ def run_training(model_name: str, cfg: Dict[str, Any], dataloaders, device: torc
             std=cfg["data"]["std"],
         )
 
+    peak_val_acc, peak_val_acc_epoch = _peak_value(history["val_acc"], mode="max")
+    peak_val_f1, peak_val_f1_epoch = _peak_value(history["val_f1"], mode="max")
+    peak_val_roc_auc, peak_val_roc_auc_epoch = _peak_value(history["val_roc_auc"], mode="max")
+    peak_val_loss, peak_val_loss_epoch = _peak_value(history["val_loss"], mode="min")
+
     return {
         "model": model_name,
         "accuracy": final_metrics["accuracy"],
@@ -253,8 +366,17 @@ def run_training(model_name: str, cfg: Dict[str, Any], dataloaders, device: torc
         "roc_auc": final_metrics["roc_auc"],
         "best_val_loss": best_val_loss,
         "best_metric": best_metric_name,
-        "best_metric_value": best_metric_value,
-        "best_epoch": best_epoch,
+        "best_metric_value": primary_tracker["best_value"],
+        "best_epoch": primary_tracker["best_epoch"],
+        "peak_val_loss": peak_val_loss,
+        "peak_val_loss_epoch": peak_val_loss_epoch,
+        "peak_val_acc": peak_val_acc,
+        "peak_val_acc_epoch": peak_val_acc_epoch,
+        "peak_val_f1": peak_val_f1,
+        "peak_val_f1_epoch": peak_val_f1_epoch,
+        "peak_val_roc_auc": peak_val_roc_auc,
+        "peak_val_roc_auc_epoch": peak_val_roc_auc_epoch,
+        "metric_checkpoint_csv": str(metric_ckpt_csv),
     }
 
 

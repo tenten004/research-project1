@@ -1,0 +1,50 @@
+seed: 1
+
+data:
+  # ViT改善実験: FL+T1の全axial範囲を使用
+  data_dir: data/repro_fl_t1_all_axial
+  image_size: 80
+  mean: 0.0
+  std: 1.0
+  num_workers: 0
+
+train:
+  batch_size: 32
+  epochs: 200
+  lr: 0.0001
+  weight_decay: 0.0001
+  lr_decay: 0.000001
+  best_metric: f1
+  optimizer:
+    name: rmsprop
+    momentum: 0.0
+    alpha: 0.99
+    eps: 1e-8
+    centered: false
+
+loss:
+  name: cross_entropy
+  class_weighting: inverse
+  effective_beta: 0.9999
+  label_smoothing: 0.0
+  power: 1.0
+
+augmentation:
+  enabled: true
+  rotation: 10
+  hflip: 0.5
+  vflip: 0.0
+  brightness: 0.05
+  contrast: 0.1
+  gamma_min: 0.9
+  gamma_max: 1.1
+  minority:
+    classes: [3, 4]
+    multiplier: 1.2
+
+model:
+  vit_name: vit_base_patch16_224
+  num_classes: 5
+
+output:
+  output_dir: outputs/repro_vit_all_axial_tuned

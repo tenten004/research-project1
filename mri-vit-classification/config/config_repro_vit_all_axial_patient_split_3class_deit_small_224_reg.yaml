@@ -1,0 +1,54 @@
+seed: 1
+
+data:
+  # FL+T1 all-axial, patient-level split, 3 classes (0 / 1 / 2+)
+  # ViTに適した高解像度(224px)とImageNet正規化を使用
+  data_dir: data/repro_fl_t1_all_axial_patient_split_3class
+  image_size: 224
+  mean: 0.5
+  std: 0.5
+  num_workers: 4
+
+train:
+  batch_size: 16
+  # 過学習が epoch1 で始まっていたため強い正則化を前提にエポックを短縮
+  epochs: 30
+  lr: 0.00003
+  # 過学習対策として weight_decay を強化
+  weight_decay: 0.1
+  # cosine スケジューラで後半の学習率を下げ、汎化を促す
+  scheduler: cosine
+  best_metric: loss
+  checkpoint_metrics:
+    - loss
+    - accuracy
+    - f1
+    - roc_auc
+  optimizer:
+    name: adamw
+
+# 過学習対策: label smoothing で train への過信を抑える
+loss:
+  name: cross_entropy
+  label_smoothing: 0.1
+
+# ViTは大データ前提のため、少データではaugmentationで汎化を強めに補強する
+augmentation:
+  enabled: true
+  rotation: 15
+  hflip: 0.5
+  vflip: 0.0
+  brightness: 0.2
+  contrast: 0.2
+  gamma_min: 0.8
+  gamma_max: 1.2
+
+model:
+  vit_name: deit_small_patch16_224
+  num_classes: 3
+  # 過学習対策: dropout と stochastic depth (drop path) を有効化
+  drop_rate: 0.1
+  drop_path_rate: 0.1
+
+output:
+  output_dir: outputs/repro_vit_all_axial_patient_split_3class_deit_small_224_reg

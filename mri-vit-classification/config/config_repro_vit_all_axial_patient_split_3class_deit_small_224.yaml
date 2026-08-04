@@ -1,0 +1,43 @@
+seed: 1
+
+data:
+  # FL+T1 all-axial, patient-level split, 3 classes (0 / 1 / 2+)
+  # ViTに適した高解像度(224px)とImageNet正規化を使用
+  data_dir: data/repro_fl_t1_all_axial_patient_split_3class
+  image_size: 224
+  mean: 0.5
+  std: 0.5
+  num_workers: 4
+
+train:
+  batch_size: 16
+  epochs: 50
+  lr: 0.00003
+  weight_decay: 0.05
+  lr_decay: 0.0
+  best_metric: loss
+  checkpoint_metrics:
+    - loss
+    - accuracy
+    - f1
+    - roc_auc
+  optimizer:
+    name: adamw
+
+# ViTは大データ前提のため、少データではaugmentationで汎化を補強する
+augmentation:
+  enabled: true
+  rotation: 10
+  hflip: 0.5
+  vflip: 0.0
+  brightness: 0.1
+  contrast: 0.1
+  gamma_min: 0.9
+  gamma_max: 1.1
+
+model:
+  vit_name: deit_small_patch16_224
+  num_classes: 3
+
+output:
+  output_dir: outputs/repro_vit_all_axial_patient_split_3class_deit_small_224

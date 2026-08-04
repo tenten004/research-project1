@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import argparse
 import csv
 import random
 import shutil
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Sequence, Tuple
 
 from sklearn.model_selection import train_test_split
 
@@ -23,6 +25,85 @@ def _parse_int(value: str | None) -> int | None:
 
 def _resolve_modality(filename: str) -> str:
     return filename.split("_", 1)[0].upper()
+
+
+def _can_stratify(labels: Sequence[int]) -> bool:
+    counts = Counter(labels)
+    return len(counts) >= 2 and min(counts.values()) >= 2
+
+
+def _safe_split(
+    items: List[str],
+    labels: List[int],
+    test_size: float,
+    seed: int,
+) -> Tuple[List[str], List[str]]:
+    if not items or test_size <= 0:
+        return items, []
+    if test_size >= 1:
+        return [], items
+
+    stratify = labels if _can_stratify(labels) else None
+    try:
+        train_items, val_items = train_test_split(
+            items,
+            test_size=test_size,
+            random_state=seed,
+            shuffle=True,
+            stratify=stratify,
+        )
+    except ValueError:
+        train_items, val_items = train_test_split(
+            items,
+            test_size=test_size,
+            random_state=seed,
+            shuffle=True,
+            stratify=None,
+        )
+    return list(train_items), list(val_items)
+
+
+def _split_entries(
+    entries: List[Dict[str, str]],
+    val_ratio: float,
+    seed: int,
+    split_mode: str,
+) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
+    if split_mode == "image":
+        train_entries, val_entries = train_test_split(
+            entries,
+            test_size=val_ratio,
+            random_state=seed,
+            shuffle=True,
+            stratify=None,
+        )
+        return list(train_entries), list(val_entries)
+
+    # Patient-level split keeps slices from one patient in a single split.
+    patient_to_entries: Dict[str, List[Dict[str, str]]] = defaultdict(list)
+    for item in entries:
+        patient_to_entries[item["patient_id"]].append(item)
+
+    patient_ids = sorted(patient_to_entries.keys())
+    patient_labels: List[int] = []
+    for pid in patient_ids:
+        labels = [int(sample["label"]) for sample in patient_to_entries[pid]]
+        majority_label = Counter(labels).most_common(1)[0][0]
+        patient_labels.append(majority_label)
+
+    train_patient_ids, val_patient_ids = _safe_split(
+        items=patient_ids,
+        labels=patient_labels,
+        test_size=val_ratio,
+        seed=seed,
+    )
+
+    train_set = set(train_patient_ids)
+    val_set = set(val_patient_ids)
+
+    train_entries = [item for item in entries if item["patient_id"] in train_set]
+    val_entries = [item for item in entries if item["patient_id"] in val_set]
+    return train_entries, val_entries
 
 
 def _load_entries(
@@ -115,6 +196,10 @@ def _count_split(output_root: Path, split_name: str) -> Counter:
     return counts
 
 
+def _count_unique_patients(entries: List[Dict[str, str]]) -> int:
+    return len({item["patient_id"] for item in entries})
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Prepare FL+T1 grade dataset for ViT reproduction experiment.",
@@ -129,6 +214,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--axial-min", type=int, default=None)
     parser.add_argument("--axial-max", type=int, default=None)
     parser.add_argument("--val-ratio", type=float, default=0.25)
+    parser.add_argument(
+        "--split-mode",
+        type=str,
+        choices=["image", "patient"],
+        default="image",
+        help="Split unit: image-level or patient-level.",
+    )
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--clean-output", action="store_true")
     parser.add_argument("--skip-train", action="store_true", help="Skip copying train split.")
@@ -179,13 +271,11 @@ def main() -> None:
     if not entries:
         raise RuntimeError("No valid entries found. Check CSVs and image paths.")
 
-    labels = [int(item["label"]) for item in entries]
-    train_entries, val_entries = train_test_split(
-        entries,
-        test_size=args.val_ratio,
-        random_state=args.seed,
-        shuffle=True,
-        stratify=None,
+    train_entries, val_entries = _split_entries(
+        entries=entries,
+        val_ratio=args.val_ratio,
+        seed=args.seed,
+        split_mode=args.split_mode,
     )
 
     if not args.skip_train:
@@ -205,6 +295,24 @@ def main() -> None:
             for label, count in sorted(counts.items()):
                 writer.writerow({"split": split_name, "label": str(label), "count": str(count)})
 
+    split_summary_path = output_root / "summary_splits.csv"
+    with split_summary_path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["split", "num_images", "num_patients"])
+        writer.writeheader()
+        rows = [
+            {
+                "split": "train",
+                "num_images": str(len(train_entries)),
+                "num_patients": str(_count_unique_patients(train_entries)),
+            },
+            {
+                "split": "val",
+                "num_images": str(len(val_entries)),
+                "num_patients": str(_count_unique_patients(val_entries)),
+            },
+        ]
+        writer.writerows(rows)
+
     if invalid_rows:
         print(f"[WARN] Skipped invalid rows: {len(invalid_rows)}")
         for msg in invalid_rows[:10]:
@@ -215,7 +323,11 @@ def main() -> None:
         for msg in missing_files[:10]:
             print(f"  {msg}")
 
+    print("Split mode:", args.split_mode)
+    print("Train: images=", len(train_entries), "patients=", _count_unique_patients(train_entries))
+    print("Val: images=", len(val_entries), "patients=", _count_unique_patients(val_entries))
     print("Done. Summary saved to:", summary_path)
+    print("Split summary saved to:", split_summary_path)
 
 
 if __name__ == "__main__":
