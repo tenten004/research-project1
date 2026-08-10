@@ -19,7 +19,7 @@ from docx.shared import Mm, Pt, RGBColor
 
 HERE = Path(__file__).resolve().parent
 TEMPLATE_PATH = HERE / "XICT_MSWord_template.docx"
-OUTPUT_PATH = HERE / "XICT予稿_T123001_浅川天夢_研究成果_20260804.docx"
+OUTPUT_PATH = HERE / "XICT予稿_T123001_浅川天夢_ブラッシュアップ版_20260810.docx"
 
 FONT_JP_BODY = "Yu Mincho"
 FONT_JP_TITLE = "Yu Gothic Medium"
@@ -28,20 +28,20 @@ COLOR_CNN = "#707070"
 COLOR_VIT = "#2F6690"
 
 JP_ABSTRACT = (
-    "本研究では，脳MRI画像から大脳白質病変の重症度を予測するため，Vision Transformer（ViT）とCNNを"
-    "患者単位で比較した．FLAIR・T1強調画像の全アキシャル53,194枚，1,154名をgrade 0，grade 1，"
-    "grade 2以上の3クラスに統合し，患者重複のない5分割交差検証を実施した．各患者の高信頼5スライスを"
-    "平均したout-of-fold評価では，ViTのmacro ROC-AUCは0.8100，CNNは0.7891で，差0.0209の95%信頼区間は"
-    "0.0062–0.0357であった．一方，Accuracyとmacro-F1の差は有意でなかった．"
+    "本研究の目的は，脳MRI画像を用いた大脳白質病変グレード分類におけるVision Transformer（ViT）の"
+    "分類性能を検討することである．FLAIR・T1強調画像の全アキシャル53,194枚，1,154名をgrade 0，"
+    "grade 1，grade 2以上の3クラスに統合し，患者重複のない5分割交差検証によりCNNと比較した．"
+    "患者単位のout-of-fold評価では，ViTのmacro ROC-AUCは0.8100，CNNは0.7891で，差0.0209の95%信頼区間は"
+    "0.0062–0.0357であった．一方，Accuracyとmacro-F1の差は明確でなかった．"
 )
 
 EN_ABSTRACT = (
-    "We compare a Vision Transformer (ViT) with a convolutional neural network for patient-level "
-    "classification of cerebral white matter lesion grades. A leakage-free five-fold cross-validation "
-    "was performed on 53,194 FLAIR and T1-weighted axial images from 1,154 patients, using three classes: "
-    "grade 0, grade 1, and grade 2 or higher. Patient probabilities were obtained by averaging the five "
-    "most confident slices. The out-of-fold macro ROC-AUC was 0.8100 for ViT and 0.7891 for CNN; the paired "
-    "difference was 0.0209 (95% CI: 0.0062–0.0357). Differences in accuracy and macro-F1 were inconclusive."
+    "The objective of this study was to evaluate the classification performance of a Vision Transformer "
+    "(ViT) for cerebral white matter lesion grades from brain MRI. We analyzed 53,194 FLAIR and T1-weighted "
+    "axial images from 1,154 patients in three classes and performed leakage-free five-fold cross-validation "
+    "with a CNN comparator. Patient-level out-of-fold macro ROC-AUC was 0.8100 for ViT and 0.7891 for CNN; "
+    "the paired difference was 0.0209 (95% CI: 0.0062–0.0357). Differences in accuracy and macro-F1 were "
+    "inconclusive."
 )
 
 
@@ -278,7 +278,7 @@ def generate() -> Path:
 
     add_centered(
         doc,
-        "Vision Transformerを用いた大脳白質病変グレード分類の患者単位評価",
+        "Vision Transformerを用いた大脳白質病変グレード分類性能の検討",
         14,
         bold=True,
         title=True,
@@ -295,7 +295,7 @@ def generate() -> Path:
 
     add_centered(
         doc,
-        "Patient-Level Evaluation of Cerebral White Matter Lesion Grade Classification Using Vision Transformer",
+        "Evaluation of Vision Transformer Performance for Cerebral White Matter Lesion Grade Classification",
         13,
         bold=True,
         after=2,
@@ -326,8 +326,8 @@ def generate() -> Path:
         doc,
         "先行研究ではCNNを用いたgrade 0からgrade 4の分類が行われた[1]．提案発表時には画像単位分割による"
         "Accuracy 0.9209を比較基準としていたが，患者IDを再点検すると，同一患者の別スライスが学習集合と評価集合に"
-        "重複する構造が判明した．そこで本研究では評価単位を患者に改め，患者重複のない条件でVision Transformer"
-        "（ViT）[3]とCNNを比較する．",
+        "重複する構造が判明した．そこで本研究では，評価単位を患者に改め，患者重複のない条件でVision Transformer"
+        "（ViT）[3]を用いた大脳白質病変の分類性能を検討する．性能を相対的に評価するため，同一条件のCNNを比較モデルとする．",
     )
 
     add_heading(doc, "2. 方法")
@@ -353,7 +353,7 @@ def generate() -> Path:
     )
     add_caption(doc, "表1: データと評価プロトコル")
 
-    add_heading(doc, "2.2 比較条件と患者集約", level=2)
+    add_heading(doc, "2.2 モデルと患者単位評価", level=2)
     add_body(
         doc,
         "ViTにはDeiT-small（patch 16，入力224×224）[4]，CNNにはResNet18を用いた．両者は同一fold，"
@@ -407,14 +407,15 @@ def generate() -> Path:
     add_heading(doc, "4. 考察")
     add_body(
         doc,
-        "患者単位の分割へ変更した結果，画像単位分割で得られていた高いAccuracyは再現せず，医療画像では"
-        "患者リーケージを防ぐ評価設計が不可欠であることが確認された．一方，同一条件の5-fold比較でViTは"
-        "macro ROC-AUCを改善した．Self-Attentionによる広域特徴の利用が，患者の重症度を順位づける能力に"
-        "寄与した可能性がある．ただしAccuracyとmacro-F1の差は小さく，ViTが分類性能全般で優れるとは結論できない．",
+        "患者単位OOF評価において，ViTはmacro ROC-AUC 0.8100を示し，同一条件のCNNより0.0209高かった．"
+        "Self-Attentionによる広域特徴の利用が，患者の重症度を順位づける能力に寄与した可能性がある．ただし，"
+        "Accuracyとmacro-F1の差は明確でなく，ViTが分類性能全般でCNNより優れるとは結論できない．",
     )
     add_body(
         doc,
-        "本研究は全アキシャルを入力し，固定したtop-5集約で患者予測を得た．これにより手動の断面範囲指定を避けたが，"
+        "画像単位分割による先行値と本研究は評価単位やクラス定義が異なるため，性能を直接比較できない．本研究は"
+        "患者リーケージを防ぎ，未知患者に対する分類性能を評価した．また，全アキシャルを入力し，固定したtop-5集約で"
+        "患者予測を得たため，手動の断面範囲指定を避けたが，"
         "スライス選択は確信度に基づく後処理であり，患者内の断面間関係を直接学習していない．また，本プロトコルは"
         "探索用validationでの検討後に固定したため，外部データに対する完全な未検証評価ではない．",
     )
@@ -422,8 +423,9 @@ def generate() -> Path:
     add_heading(doc, "5. おわりに")
     add_body(
         doc,
-        "大脳白質病変の3クラス分類について，患者重複のない5-fold OOF評価でViTとCNNを比較した．ViTはmacro "
-        "ROC-AUCで小さいが統計的に支持される改善を示した一方，Accuracyとmacro-F1の優位性は確認できなかった．"
+        "本研究では，大脳白質病変の3クラス分類におけるViTの分類性能を，患者重複のない5-fold OOF評価で検討した．"
+        "ViTはmacro ROC-AUC 0.8100を示し，同一条件のCNNに対して小さいが統計的に支持される改善を示した一方，"
+        "Accuracyとmacro-F1の優位性は確認できなかった．"
         "今後は外部検証または反復交差検証を行うとともに，全スライスを患者単位で学習するMILやTransformer集約へ"
         "発展させ，grade 1の識別改善を検討する．",
     )
@@ -434,7 +436,7 @@ def generate() -> Path:
     add_reference(doc, 3, "A. Dosovitskiy et al., “An Image is Worth 16×16 Words: Transformers for Image Recognition at Scale,” ICLR, 2021.")
     add_reference(doc, 4, "H. Touvron et al., “Training data-efficient image transformers & distillation through attention,” ICML, pp. 10347–10357, 2021.")
 
-    doc.core_properties.title = "Vision Transformerを用いた大脳白質病変グレード分類の患者単位評価"
+    doc.core_properties.title = "Vision Transformerを用いた大脳白質病変グレード分類性能の検討"
     doc.core_properties.author = "浅川 天夢，石井 一夫"
     doc.core_properties.subject = "X-ICT発表予稿"
     doc.save(OUTPUT_PATH)
